@@ -55,12 +55,24 @@ const OPENCODE_MODEL = process.env.OPENCODE_MODEL || "opencode/nemotron-3-ultra-
 // derives from the upstream and dies on OpenRouter's "video" modality
 // (`unknown variant 'video', expected 'text' or 'image'`) — verified working on
 // nebius, so it stays there until that is fixed upstream in kimi-relay.
-const PROVIDER_FOR = {
-  claude: process.env.LLM_PROVIDER_CLAUDE || process.env.LLM_PROVIDER || "openrouter",
-  codex: process.env.LLM_PROVIDER_CODEX || process.env.LLM_PROVIDER || "nebius",
-};
+// Aisa (api.aisa.one) is a unified OpenAI-compatible gateway carrying 100+
+// models — frontier Claude and GPT included — behind ONE key, so it is the
+// default upstream for both agent harnesses.
+// Read lazily: .env is parsed above at import time, but keep these as getters so
+// a value set later (or by a restart-free edit) is still honoured.
+const providerFor = (agent) =>
+  (agent === "claude"
+    ? process.env.LLM_PROVIDER_CLAUDE
+    : process.env.LLM_PROVIDER_CODEX) ||
+  process.env.LLM_PROVIDER ||
+  "aisa";
 const OPENROUTER_MODEL =
   process.env.OPENROUTER_MODEL || "nvidia/nemotron-3-ultra-550b-a55b:free";
+// Aisa model per harness: claude speaks Anthropic wire format, codex OpenAI's,
+// and kimi-relay rewrites the model id in flight, so each gets a native-ish model.
+const AISA_MODEL_CLAUDE = process.env.AISA_MODEL_CLAUDE || "claude-sonnet-5";
+const AISA_MODEL_CODEX = process.env.AISA_MODEL_CODEX || "gpt-5.3-codex";
+const aisaModelFor = (agent) => (agent === "codex" ? AISA_MODEL_CODEX : AISA_MODEL_CLAUDE);
 // Public URL of THIS broker/site, so a sandbox can call back to publish a port.
 // Required for the deploy feature; without it, `tenki-publish` is unavailable.
 const BROKER_PUBLIC_URL = (process.env.BROKER_PUBLIC_URL || "").replace(/\/$/, "");
@@ -92,6 +104,36 @@ const UPSTREAM = {
                 allow: new Set(["chat/completions", "models"]),
                 key: () => process.env.OPENROUTER_API_KEY,
                 forceModel: () => OPENROUTER_MODEL },
+  // Aisa: one OpenAI-compatible gateway fronting 100+ models (frontier Claude and
+  // GPT included) behind a single key — the default upstream. Registered once per
+  // harness so each pins the model that suits its wire format, since forceModel()
+  // is per-upstream and kimi-relay sends Nebius-style ids either way.
+  // claude speaks the Anthropic wire format, which Aisa serves natively at
+  // /v1/messages — forcing it through /chat/completions 400s ("Input does not
+  // match the expected shape"), so both paths are allowed here.
+  "aisa-claude": { origin: process.env.AISA_UPSTREAM_ORIGIN || "https://api.aisa.one", strip: "v1",
+                   allow: new Set(["chat/completions", "messages", "responses", "models"]),
+                   key: () => process.env.AISA_API_KEY,
+                   forceModel: () => AISA_MODEL_CLAUDE },
+  // codex (v0.144+) drives the OpenAI *Responses* API, not chat/completions —
+  // omitting "responses" here 403s the request, which the CLI reports as
+  // "stream disconnected before completion: response.failed".
+  "aisa-codex": { origin: process.env.AISA_UPSTREAM_ORIGIN || "https://api.aisa.one", strip: "v1",
+                  allow: new Set(["chat/completions", "responses", "models"]),
+                  key: () => process.env.AISA_API_KEY,
+                  forceModel: () => AISA_MODEL_CODEX },
+  // TinyFish: free (no cost, no credit card) but NOT keyless — both endpoints 401
+  // with MISSING_API_KEY unless X-API-Key is set, so the key stays server-side.
+  // Search and Fetch are separate hosts, and both live at the ORIGIN ROOT, hence
+  // allow: [""].
+  "tinyfish-search": { origin: process.env.TINYFISH_SEARCH_ORIGIN || "https://api.search.tinyfish.ai", strip: null,
+                       allow: new Set([""]),
+                       authHeader: "x-api-key", authPrefix: "",
+                       key: () => process.env.TINYFISH_API_KEY },
+  "tinyfish-fetch": { origin: process.env.TINYFISH_FETCH_ORIGIN || "https://api.fetch.tinyfish.ai", strip: null,
+                      allow: new Set([""]),
+                      authHeader: "x-api-key", authPrefix: "",
+                      key: () => process.env.TINYFISH_API_KEY },
   tavily: { origin: process.env.TAVILY_UPSTREAM_ORIGIN || "https://api.tavily.com", strip: null,
             allow: new Set(["search"]),
             key: () => process.env.TAVILY_API_KEY },
@@ -105,7 +147,11 @@ const MAX_RELAY_CALLS = Number(process.env.MAX_RELAY_CALLS || 600);   // per ses
 const MAX_RELAY_INFLIGHT = 4;
 const MAX_RELAY_BODY = 1 << 20;                                       // 1 MiB request cap
 const RELAY_STREAM_CAP_MS = 15 * 60_000;                             // absolute per-request cap
-const RELAY_HEADER_TIMEOUT_MS = 60_000;
+// Time-to-first-byte allowance. A NON-streaming call to a reasoning model
+// (e.g. Kimi-K3) does not send headers until the whole completion is done, so
+// 60s was tripping our own timeout and surfacing as "502 bad gateway" inside
+// the agent CLI. Generous by default; override with RELAY_HEADER_TIMEOUT_MS.
+const RELAY_HEADER_TIMEOUT_MS = Number(process.env.RELAY_HEADER_TIMEOUT_MS || 300_000);
 const MAX_OUTPUT_TOKENS = 32768;
 // Optional spend guard: comma-separated Nebius model allow-list. Empty = allow any
 // (call/concurrency/token caps still bound spend). Set to tighten.
@@ -161,6 +207,24 @@ async function readJson(req) {
 }
 
 const client = new TenkiSandbox({ authToken: process.env.TENKI_API_KEY });
+
+// Robustly terminate a session. closeIfOpen() SKIPS paused sessions (which is
+// what sandboxes become once past their max duration), silently leaving them
+// alive — so close() directly, and if that's rejected because it's paused,
+// resume then close. Returns quietly whether or not it succeeds.
+async function terminateSession(id) {
+  try {
+    const s = await client.get(id);
+    if (isTerminal(s.state)) return;
+    try { await s.close(); }
+    catch {
+      try { await s.resume(); await s.close(); }
+      catch (e) { log("terminate_failed", { id, message: e.message }); }
+    }
+  } catch (e) {
+    if (!(e instanceof SessionNotFoundError)) log("terminate_get_failed", { id, message: e.message });
+  }
+}
 
 /* Tracked demo sessions, persisted so a broker restart can't orphan or
  * (worse) lose sight of live VMs. Only ids in this map are ever returned
@@ -310,7 +374,10 @@ async function openTerminal(req, res, id) {
   // never needs a Nebius key); the Kimi toggle only governs claude and codex.
   const kimi = body.kimi === true && !!agent && agent !== "opencode";
   const fullAuto = body.fullAuto !== false;
-  const llmProvider = PROVIDER_FOR[agent] || "nebius";
+  // "aisa" is registered per-harness (aisa-claude / aisa-codex) so each pins its
+  // own model; every other provider is a single upstream key.
+  const pref = providerFor(agent);
+  const llmProvider = pref === "aisa" ? `aisa-${agent === "codex" ? "codex" : "claude"}` : pref;
   if (kimi && !UPSTREAM[llmProvider]?.key()) return json(res, 501, { error: "kimi_unconfigured" });
   // Fail loudly at create time: without an https relay URL the VM would get a
   // token and nowhere valid to send it (kimi routes through the broker relay).
@@ -372,8 +439,38 @@ async function openTerminal(req, res, id) {
       'export PATH="$HOME/.local/bin:$PATH"',
       publishHelper,
     ];
+    // claude + aisa must BYPASS kimirelay: that wrapper reshapes requests into
+    // Nebius's form, and Aisa rejects it with
+    // `400 system.0: Input does not match the expected shape`. Aisa serves the
+    // Anthropic wire format natively, so claude talks to the relay directly.
+    // (kimirelay stays correct for nebius/openrouter, and for codex everywhere.)
+    const claudeDirect = kimi && agent === "claude" && pref === "aisa";
+    // First-run TUI gates that would otherwise block the terminal: theme picker,
+    // per-folder trust dialog, and the "custom API key detected" prompt.
+    const claudeSeed = JSON.stringify({
+      hasCompletedOnboarding: true,
+      theme: "dark",
+      bypassPermissionsModeAccepted: true,
+      projects: { "/home/tenki": { hasTrustDialogAccepted: true, projectOnboardingSeenCount: 1, allowedTools: [] } },
+    });
     let launch;
-    if (kimi) {
+    if (claudeDirect) {
+      launch = [
+        ...tenkiEnv,
+        `printf '%s' '${claudeSeed}' > "$HOME/.claude.json"`,
+        `export ANTHROPIC_BASE_URL='${BROKER_PUBLIC_URL}/relay/${llmProvider}'`,
+        `export ANTHROPIC_AUTH_TOKEN='${entry.relayToken}'`,
+        // Any ANTHROPIC_API_KEY (the base image ships one) triggers a blocking
+        // "use this custom API key?" prompt — the auth token alone is enough.
+        `unset ANTHROPIC_API_KEY`,
+        `export ANTHROPIC_MODEL='${AISA_MODEL_CLAUDE}'`,
+        ...(process.env.TAVILY_API_KEY
+          ? [`export TAVILY_API_KEY='${entry.relayToken}'`,
+             `export TAVILY_BASE_URL='${BROKER_PUBLIC_URL}/relay/tavily'`]
+          : []),
+        `exec ${argv}`,
+      ].join("\n");
+    } else if (kimi) {
       // kimirelay fronts the agent with Kimi K3 on Nebius — no agent login.
       // kimirelay passes extra args through to the underlying agent.
       launch = [
@@ -519,7 +616,7 @@ async function relay(req, res, seg, search) {
 
   // Spend guard for Nebius chat/completions: optional model allow-list +
   // max_tokens clamp (a root visitor can curl the relay directly with any body).
-  if (rest === "chat/completions" && bodyBuf.length) {
+  if ((rest === "chat/completions" || rest === "messages" || rest === "responses") && bodyBuf.length) {
     try {
       const p = JSON.parse(bodyBuf.toString("utf8"));
       // kimi-relay addresses models by the upstream it thinks it is talking to,
@@ -527,7 +624,13 @@ async function relay(req, res, seg, search) {
       if (up.forceModel) p.model = up.forceModel();
       else if (RELAY_MODELS.size && p.model && !RELAY_MODELS.has(p.model))
         return json(res, 403, { error: "model_not_allowed" });
-      if (typeof p.max_tokens !== "number" || p.max_tokens > MAX_OUTPUT_TOKENS) p.max_tokens = MAX_OUTPUT_TOKENS;
+      // The Responses API caps with max_output_tokens; chat/completions with max_tokens.
+      if (rest === "responses") {
+        if (typeof p.max_output_tokens === "number" && p.max_output_tokens > MAX_OUTPUT_TOKENS)
+          p.max_output_tokens = MAX_OUTPUT_TOKENS;
+      } else if (typeof p.max_tokens !== "number" || p.max_tokens > MAX_OUTPUT_TOKENS) {
+        p.max_tokens = MAX_OUTPUT_TOKENS;
+      }
       bodyBuf = Buffer.from(JSON.stringify(p));
     } catch { /* not JSON — forward unchanged */ }
   }
@@ -535,7 +638,11 @@ async function relay(req, res, seg, search) {
   // Forward headers minus hop-by-hop; inject the REAL key server-side.
   const headers = {};
   for (const [k, v] of Object.entries(req.headers)) if (!HOP.has(k.toLowerCase())) headers[k] = v;
-  headers["authorization"] = `Bearer ${up.key()}`;
+  // Most upstreams take `Authorization: Bearer <key>`; some (TinyFish) use their
+  // own header with no prefix. Strip the caller's Authorization either way so a
+  // seat's relayToken is never forwarded upstream.
+  delete headers["authorization"];
+  headers[up.authHeader || "authorization"] = `${up.authPrefix ?? "Bearer "}${up.key()}`;
   headers["accept-encoding"] = "identity";              // never gzip an SSE stream
   headers["content-length"] = String(bodyBuf.length);
   const u = new URL(up.origin);
@@ -652,7 +759,7 @@ async function reap() {
       const s = await client.get(id);
       if (isTerminal(s.state)) delete tracked[id];
       // entry.keep = a published maxx deliverable; persist it past the deadline.
-      else if (past && !entry.keep) { await s.closeIfOpen(); delete tracked[id]; log("demo_reaped", { id }); }
+      else if (past && !entry.keep) { await terminateSession(id); delete tracked[id]; log("demo_reaped", { id }); }
     } catch (e) {
       if (e instanceof SessionNotFoundError || (past && !entry.keep)) delete tracked[id];
     }
@@ -665,6 +772,8 @@ async function reap() {
   }
 }
 setInterval(() => reap().catch((e) => log("reap_failed", { message: e.message })), 60_000);
+// End maxx runs past their deadline (terminate workers, keep shipped apps).
+setInterval(() => maxx.sweep().catch((e) => log("maxx_sweep_failed", { message: e.message })), 60_000);
 
 const MIME = { ".html": "text/html; charset=utf-8", ".md": "text/markdown; charset=utf-8", ".css": "text/css", ".js": "text/javascript", ".png": "image/png", ".svg": "image/svg+xml", ".ico": "image/x-icon" };
 
@@ -684,7 +793,7 @@ function serveStatic(req, res) {
 // can create sandboxes, keep them in `tracked` (expose + reaper still see
 // them), and answer over the same HTTP server.
 const maxx = createMaxx({
-  client, tracked, saveState, indexRelay, log, json, readJson,
+  client, tracked, saveState, indexRelay, log, json, readJson, terminateSession,
   brokerUrl: BROKER_PUBLIC_URL,
 });
 
@@ -706,6 +815,8 @@ http.createServer(async (req, res) => {
       if (req.method === "GET" && seg.length === 3) return await maxx.get(res, seg[2]);
       if (req.method === "DELETE" && seg.length === 3) return await maxx.stop(res, seg[2], new URL(req.url, "http://x").searchParams.get("all") === "1");
       if (req.method === "POST" && seg.length === 4 && seg[3] === "watch") return await maxx.watch(req, res, seg[2]);
+      if (req.method === "POST" && seg.length === 4 && seg[3] === "say") return await maxx.say(req, res, seg[2]);
+      if (req.method === "POST" && seg.length === 4 && seg[3] === "pick") return await maxx.pick(req, res, seg[2]);
       return json(res, 404, { error: "not_found" });
     }
     if (seg[0] === "relay") return await relay(req, res, seg, new URL(req.url, "http://x").search);

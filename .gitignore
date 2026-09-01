@@ -10,3 +10,6 @@ broker/.env
 
 # design canvas payload (2MB, machine-generated)
 design-maxx/sandboxmaxxing-ui.html
+
+# machine-local dev-server config (absolute scratchpad paths)
+.claude/

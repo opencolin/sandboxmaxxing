@@ -222,12 +222,23 @@
     display: block;
   }
   .prompt-box textarea::placeholder { color: #666; }
-  .prompt-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; padding: 6px 10px 10px; }
+  .prompt-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; padding: 2px 0 0; }
   .prompt-actions .btn { padding: 8px 20px; font-size: 14px; }
   .agent-select { display: flex; gap: 6px; margin-right: auto; }
   .agent-select .chip { margin: 0; }
   .agent-select .chip svg { display: block; }
   .agent-select .chip.sel { border-color: var(--fg); background: #161616; }
+  /* deploy-page sandboxmaxxing scale selectors */
+  .build-scale { display: flex; flex-wrap: wrap; gap: 18px 34px; align-items: flex-end; margin: 20px 2px 14px; }
+  .build-scale-group { display: flex; flex-direction: column; }
+  .build-scale-group .mx-ctl-label { margin-bottom: 9px; }
+  #dpScaleNote { font-size: 12.5px; color: #8a8a8a; line-height: 1.55; margin: 0 2px 14px; }
+  .dp-select { appearance: none; border: 1px solid var(--line); border-radius: 999px; background: #060606 url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='7' viewBox='0 0 10 7'><path d='M1 1l4 4 4-4' fill='none' stroke='%238f8f8f' stroke-width='1.5'/></svg>") no-repeat right 14px center;
+    color: var(--fg); font: inherit; font-size: 13px; padding: 9px 34px 9px 16px; cursor: pointer; transition: border-color .15s; }
+  .dp-select:hover { border-color: #3a3a3a; }
+  .dp-select:focus { outline: none; border-color: #666; }
+  .dp-select option { background: #0a0a0a; color: var(--fg); }
+  #dpScaleNote b { color: var(--sand); font-weight: 500; }
   .kimi-chip.sel, .fullauto-chip.sel { border-color: var(--sand); color: var(--sand); }
   .chips { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 16px; }
   .chip {
@@ -409,6 +420,61 @@
   .mx-dot.starting, .mx-dot.pending, .mx-dot.CREATING { background: #e0b34c; animation: sbxPulse 1.2s ease-in-out infinite; }
   .mx-dot.done, .mx-dot.published { background: var(--sand); }
   .mx-dot.failed { background: #e06c6c; }
+  /* theater: one big live terminal + a YouTube-style "up next" rail of seats */
+  .mx-viewtabs { display: inline-flex; border: 1px solid var(--line); border-radius: 999px; padding: 3px; gap: 2px; background: #060606; margin-right: 14px; }
+  .mx-viewtabs button { border: none; background: transparent; color: var(--muted); font: inherit; font-size: 12px; padding: 6px 13px; border-radius: 999px; cursor: pointer; }
+  .mx-viewtabs button.on { background: var(--fg); color: #000; font-weight: 500; }
+  .mx-theater { display: grid; grid-template-columns: minmax(0,1fr) 340px; gap: 16px; align-items: start; }
+  .mx-stage { border: 1px solid #1e1e1e; border-radius: 14px; background: #0a0a0a; overflow: hidden; }
+  .mx-stage-bar { display: flex; align-items: center; gap: 10px; padding: 11px 14px; border-bottom: 1px solid #1e1e1e; }
+  .mx-stage-title { font-size: 13px; color: #e6e6e6; font-weight: 500; }
+  .mx-stage-sub { font-family: "SF Mono", monospace; font-size: 10.5px; color: #7f7f7f; }
+  .mx-stage-open { margin-left: auto; font-family: "SF Mono", monospace; font-size: 11px; color: var(--sand); text-decoration: none; white-space: nowrap; }
+  .mx-stage-open:hover { color: #ede1c4; }
+  .mx-stage-frame { width: 100%; height: 560px; border: 0; display: block; background: #000; }
+  .mx-stage-empty { height: 560px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; color: #6a6a6a; font-family: "SF Mono", monospace; font-size: 12.5px; text-align: center; padding: 0 24px; }
+  .mx-say { display: flex; gap: 8px; align-items: center; padding: 10px 12px; border-top: 1px solid #1e1e1e; background: #070707; }
+  .mx-say input { flex: 1; min-width: 0; background: #000; border: 1px solid var(--line); border-radius: 8px; color: var(--fg); font: inherit; font-size: 13px; padding: 9px 12px; }
+  .mx-say input:focus { outline: none; border-color: #666; }
+  .mx-say input::placeholder { color: #5a5a5a; }
+  .mx-say button { border: 1px solid var(--line); background: #111; color: var(--fg); font: inherit; font-size: 12.5px; padding: 9px 16px; border-radius: 8px; cursor: pointer; white-space: nowrap; }
+  .mx-say button:hover:not(:disabled) { border-color: #666; }
+  .mx-say button:disabled { opacity: .5; cursor: default; }
+  .mx-say-hint { font-family: "SF Mono", monospace; font-size: 10.5px; color: #6a6a6a; padding: 0 12px 10px; }
+  .mx-rail { display: flex; flex-direction: column; gap: 9px; max-height: 620px; overflow-y: auto; padding-right: 4px; }
+  .mx-rail-head { font-family: "SF Mono", monospace; font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: #6a6a6a; margin-bottom: 2px; }
+  .mx-side { display: flex; gap: 10px; align-items: flex-start; padding: 8px; border: 1px solid transparent; border-radius: 11px; cursor: pointer; transition: background .12s, border-color .12s; text-align: left; background: none; font: inherit; width: 100%; }
+  .mx-side:hover { background: #101010; border-color: #232323; }
+  .mx-side.on { background: #14120c; border-color: rgba(217,201,163,.5); }
+  .mx-side-thumb { flex: none; width: 92px; height: 58px; border-radius: 7px; background: #000; border: 1px solid #232323; display: flex; align-items: center; justify-content: center; overflow: hidden; position: relative; }
+  .mx-side-thumb code { font-family: "SF Mono", monospace; font-size: 8.5px; color: #3ecf6a; line-height: 1.25; padding: 4px; overflow: hidden; word-break: break-all; }
+  .mx-side.on .mx-side-thumb { border-color: rgba(217,201,163,.55); }
+  .mx-side-meta { min-width: 0; flex: 1; }
+  .mx-side-role { font-size: 12.5px; color: #e6e6e6; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .mx-side-model { font-family: "SF Mono", monospace; font-size: 10px; color: #7f7f7f; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 2px; }
+  .mx-side-state { display: inline-flex; align-items: center; gap: 5px; font-size: 10.5px; color: #7c7c7c; margin-top: 4px; }
+  .mx-side-team { font-family: "SF Mono", monospace; font-size: 9.5px; letter-spacing: .08em; color: #6a6a6a; }
+  @media (max-width: 900px) { .mx-theater { grid-template-columns: 1fr; } .mx-rail { max-height: 300px; flex-direction: row; overflow-x: auto; } .mx-side { width: 260px; flex: none; } }
+  /* embedded deliverable renders */
+  .mx-renders-head { font-family: "SF Mono", monospace; font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: #6a6a6a; margin-bottom: 10px; }
+  .mx-renders-grid { display: grid; gap: 16px; align-items: start; }
+  .mx-render { border: 1px solid #1e1e1e; border-radius: 14px; background: #0a0a0a; overflow: hidden; }
+  .mx-render.win { border-color: rgba(217,201,163,.55); box-shadow: 0 0 0 1px rgba(217,201,163,.25); }
+  .mx-render-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 14px; border-bottom: 1px solid #1e1e1e; }
+  .mx-render-tag { font-family: "SF Mono", monospace; font-size: 11px; letter-spacing: .08em; color: #cfcfcf; }
+  .mx-render.win .mx-render-tag { color: var(--sand); }
+  .mx-render-win-badge { color: var(--sand); font-size: 10px; margin-left: 6px; }
+  .mx-render-open { font-family: "SF Mono", monospace; font-size: 11px; color: var(--sand); text-decoration: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 55%; }
+  .mx-render-open:hover { color: #ede1c4; }
+  .mx-pick { display: block; width: calc(100% - 24px); margin: 0 12px 12px; padding: 10px 14px; border: 1px solid rgba(217,201,163,.45); background: #14120c; color: var(--sand); font: inherit; font-size: 12.5px; border-radius: 9px; cursor: pointer; }
+  .mx-pick:hover:not(:disabled) { background: #1b1810; border-color: var(--sand); }
+  .mx-pick:disabled { opacity: .5; cursor: default; }
+  .mx-pick-row { margin-top: 10px; }
+  .mx-pick-row input { width: 100%; background: #000; border: 1px solid var(--line); border-radius: 9px; color: var(--fg); font: inherit; font-size: 13px; padding: 10px 13px; }
+  .mx-pick-row input:focus { outline: none; border-color: #666; }
+  .mx-pick-row input::placeholder { color: #5a5a5a; }
+  .mx-render-frame { width: 100%; height: 440px; border: 0; display: block; background: #000; }
+  .mx-render-empty { height: 440px; display: flex; align-items: center; justify-content: center; color: #5a5a5a; font-family: "SF Mono", monospace; font-size: 12px; }
 </style>
 </head>
 <body>
@@ -486,6 +552,43 @@
         <textarea id="promptInput" rows="2"
           placeholder="Run my eval suite across 50 parallel environments with reproducible snapshot states."></textarea>
       </div>
+    </div>
+    <div class="build-scale">
+        <div class="build-scale-group">
+          <span class="mx-ctl-label">Agents / team</span>
+          <div class="mx-seg" id="dpAgents">
+            <button class="on" onclick="dpSetSize(1,this)">1</button>
+            <button onclick="dpSetSize(4,this)">4</button>
+            <button onclick="dpSetSize(12,this)">12</button>
+            <button onclick="dpSetSize(24,this)">24</button>
+          </div>
+        </div>
+        <div class="build-scale-group">
+          <span class="mx-ctl-label">Teams</span>
+          <div class="mx-seg" id="dpTeams">
+            <button class="on" onclick="dpSetTeams(1,this)">Solo</button>
+            <button onclick="dpSetTeams(2,this)">2 · arena</button>
+          </div>
+        </div>
+        <div class="build-scale-group" id="dpProviderGroup">
+          <span class="mx-ctl-label">Preferred provider</span>
+          <select id="dpProvider" class="dp-select" onchange="dpSetProvider(this.value)"
+            title="Where the agents' model requests are routed. Aisa fronts 100+ models behind one key.">
+            <option value="aisa" selected>Aisa · 100+ models</option>
+            <option value="opencode">Opencode · free models</option>
+            <option value="openrouter">OpenRouter</option>
+            <option value="nebius">Nebius · Kimi K3</option>
+          </select>
+        </div>
+        <div class="build-scale-group" id="dpModelsGroup" style="display:none;">
+          <span class="mx-ctl-label">Models</span>
+          <div class="mx-seg" id="dpModels">
+            <button class="on" onclick="dpSetMode('free',this)">Free</button>
+            <button onclick="dpSetMode('frontier',this)" title="Route every agent through the broker relay to Kimi K3 — no key in the sandbox">Frontier · Kimi K3</button>
+          </div>
+        </div>
+      </div>
+      <div id="dpScaleNote" class="mono"></div>
       <div class="prompt-actions">
         <div class="agent-select" role="radiogroup" aria-label="Agent">
           <button class="chip" onclick="selectAgent(this, 'claude')">
@@ -505,9 +608,8 @@
           title="Route agents through kimi-relay to Kimi K3 on Nebius Token Factory — no agent login needed">Kimi K3 · on</button>
         <button class="chip fullauto-chip sel" onclick="toggleFullAuto()"
           title="Skip every approval prompt inside the sandbox (claude --dangerously-skip-permissions, codex --dangerously-bypass-approvals-and-sandbox, opencode --auto)">Full-Auto · on</button>
-        <button class="btn btn-primary" id="buildBtn" onclick="buildInSandbox(this)" disabled>Build</button>
+        <button class="btn btn-primary" id="buildBtn" onclick="deployBuild(this)" disabled>Build</button>
       </div>
-    </div>
     <div class="chips">
       <button class="chip" onclick="fillPrompt('Run my eval suite across 50 parallel environments with reproducible snapshot states.')">AI Evaluations</button>
       <button class="chip" onclick="fillPrompt('Spin up a code interpreter that runs untrusted code with real-time output streaming.')">Code Interpreter</button>
@@ -698,6 +800,10 @@ tenki sandbox ssh --session my-box</div>
         <div class="mx-stat"><b id="mxElapsed">0:00</b><span>ELAPSED</span></div>
         <div class="mx-stat"><b id="mxBuilding" style="color:#3ecf6a;">0</b><span>RUNNING</span></div>
         <div class="mx-stat"><b id="mxPushed" style="color:var(--sand);">0</b><span>PUBLISHED</span></div>
+        <div class="mx-viewtabs" id="mxViewTabs">
+          <button onclick="mxSetView('grid',this)">Grid</button>
+          <button class="on" onclick="mxSetView('theater',this)">Theater</button>
+        </div>
         <button class="btn btn-ghost" id="mxStop" onclick="mxStop()" style="padding:9px 18px;font-size:13px;">Stop all</button>
       </div>
     </div>
@@ -705,7 +811,34 @@ tenki sandbox ssh --session my-box</div>
       <div class="panel-label" style="margin-bottom:6px;">Judge verdict</div>
       <div id="mxVerdictText" style="font-size:14px;line-height:1.55;color:#c4c4c4;"></div>
     </div>
-    <div id="mxTeams" style="display:grid;gap:16px;align-items:start;"></div>
+    <div id="mxRenders" style="display:none;margin-bottom:18px;"></div>
+    <div id="mxTheater" class="mx-theater" style="display:grid;">
+      <div class="mx-stage">
+        <div class="mx-stage-bar">
+          <div>
+            <div class="mx-stage-title" id="mxStageTitle">Pick a seat to watch</div>
+            <div class="mx-stage-sub" id="mxStageSub"></div>
+          </div>
+          <a class="mx-stage-open" id="mxStageOpen" href="#" target="_blank" rel="noopener" style="display:none;">open ↗</a>
+        </div>
+        <div class="mx-stage-empty" id="mxStageEmpty">
+          <span>Select an agent on the right to drop into its live terminal.</span>
+          <span style="color:#4a4a4a;">Each open terminal uses one preview URL.</span>
+        </div>
+        <iframe class="mx-stage-frame" id="mxStageFrame" style="display:none;" title="agent terminal"></iframe>
+        <div class="mx-say" id="mxSayRow" style="display:none;">
+          <input id="mxSayInput" type="text" placeholder="Talk to this agent — e.g. &quot;use a dark theme and add a reset button&quot;"
+                 onkeydown="if(event.key==='Enter')mxSay()">
+          <button id="mxSayBtn" onclick="mxSay()">Send</button>
+        </div>
+        <div class="mx-say-hint" id="mxSayHint" style="display:none;">Sent straight into the agent's session — you can also click the terminal and type directly.</div>
+      </div>
+      <div>
+        <div class="mx-rail-head">Agents</div>
+        <div class="mx-rail" id="mxRail"></div>
+      </div>
+    </div>
+    <div id="mxTeams" style="display:none;gap:16px;align-items:start;"></div>
     <div style="display:flex;align-items:center;gap:22px;margin-top:22px;font-size:12px;color:#7c7c7c;flex-wrap:wrap;">
       <span style="display:inline-flex;align-items:center;gap:7px;"><span class="mx-dot running"></span> building</span>
       <span style="display:inline-flex;align-items:center;gap:7px;"><span class="mx-dot pending"></span> starting</span>
@@ -806,6 +939,7 @@ let buildAgent = 'opencode';   // free models, no key required
 function selectAgent(btn, name) {
   buildAgent = name;
   document.querySelectorAll('.agent-select .chip').forEach(c => c.classList.toggle('sel', c === btn));
+  if (typeof dpSync === 'function') dpSync();   // harness change updates the arena controls + note
 }
 let kimiOn = sessionStorage.getItem('kimiK3') !== '0';  // on unless explicitly switched off
 function renderKimi() {
@@ -840,6 +974,84 @@ function buildInSandbox(btn) {
   openTerminal(buildAgent, btn, prompt);
 }
 
+/* ---- deploy-page sandboxmaxxing: Agents (1/4/12) × Teams (1/2/4-arena) ----
+   A single build scales from one sandbox (1 agent, Solo — today's flow) up to a
+   full competitive arena. When agents>1 or teams>1, Build routes to /api/maxx. */
+const dp = { size: 1, teams: 1, mode: 'free', provider: 'aisa' };
+// Picking "opencode" as the provider means the keyless native models, which only
+// the opencode harness can use — so keep the two in sync.
+function dpSetProvider(p) {
+  dp.provider = p;
+  if (p === 'opencode') {
+    const oc = [...document.querySelectorAll('.agent-select .chip')].find(c => /opencode/.test(c.textContent));
+    if (oc && buildAgent !== 'opencode') selectAgent(oc, 'opencode');
+  }
+  dpSync();
+}
+// Every build runs through the arena, Solo/1 included: a single agent gets the
+// same on-page, click-to-watch view as a 24-agent run instead of a popup window.
+function dpMaxxMode() { return true; }
+function dpSegOn(btn) { [...btn.parentElement.children].forEach(c => c.classList.toggle('on', c === btn)); }
+function dpSetSize(n, btn) { dp.size = n; dpSegOn(btn); dpSync(); }
+function dpSetTeams(n, btn) { dp.teams = n; dpSegOn(btn); dpSync(); }
+function dpSetMode(m, btn) { dp.mode = m; dpSegOn(btn); }
+function dpSync() {
+  const maxx = dpMaxxMode();
+  const acts = document.querySelector('#view-deploy .prompt-actions');
+  // The agent picker is the HARNESS picker (claude/codex/opencode) in both modes,
+  // so it stays visible. In arena mode Kimi/Full-Auto are implied and hide.
+  acts.querySelector('.agent-select').style.display = '';
+  acts.querySelectorAll('.kimi-chip, .fullauto-chip').forEach(e => e.style.display = maxx ? 'none' : '');
+  // Free/Frontier only applies to opencode running its own native models.
+  const nativeOpencode = buildAgent === 'opencode' && dp.provider === 'opencode';
+  document.getElementById('dpModelsGroup').style.display = (maxx && nativeOpencode) ? '' : 'none';
+  // Build button: maxx needs no demo sandbox; single-build keeps the live-sandbox gate
+  const bb = document.getElementById('buildBtn');
+  bb.disabled = false;
+  bb.textContent = dp.teams > 1 ? 'Start arena →' : dp.size > 1 ? 'Start team →' : 'Start →';
+  const note = document.getElementById('dpScaleNote');
+  if (!maxx) { note.style.display = 'none'; note.innerHTML = ''; return; }
+  note.style.display = 'block';
+  const hLabel = buildAgent.charAt(0).toUpperCase() + buildAgent.slice(1);
+  const PROV = { aisa: 'Aisa', openrouter: 'OpenRouter', nebius: 'Nebius', opencode: 'Opencode free models' };
+  // The provider only governs claude/codex — opencode always runs its own
+  // native models, so don't claim otherwise.
+  const relayNote = buildAgent === 'opencode'
+    ? ` <span style="color:#a98c56;">Opencode runs its own free models${dp.mode === 'frontier' ? ' (Frontier: Kimi K3 via the relay)' : ''} — the provider applies to Claude and Codex.</span>`
+    : ` <span style="color:#a98c56;">${hLabel} routes through ${PROV[dp.provider]}.</span>`;
+  if (dp.teams > 1)
+    note.innerHTML = `<b>${dp.teams}-team arena · ${hLabel}.</b> ${dp.teams} teams of ${dp.size} agents (${dp.teams * dp.size} sandboxes) build the same brief, then a judge picks the winner.` + relayNote;
+  else
+    note.innerHTML = dp.size === 1
+      ? `<b>Solo · ${hLabel}.</b> One agent in one sandbox builds and ships the brief — watch it live from the run page.` + relayNote
+      : `<b>Solo team · ${hLabel}.</b> ${dp.size} agents (${dp.size} sandboxes) build the brief together; the architect ships it.` + relayNote;
+}
+function deployBuild(btn) {
+  return dpMaxxMode() ? dpLaunch(btn) : buildInSandbox(btn);
+}
+async function dpLaunch(btn) {
+  const ta = document.getElementById('promptInput');
+  const prompt = ta.value.trim() || ta.getAttribute('placeholder');
+  const orig = btn.textContent;
+  btn.disabled = true; btn.textContent = 'Spinning up sandboxes…';
+  const note = document.getElementById('dpScaleNote');
+  try {
+    const body = { prompt, mode: dp.mode, harness: buildAgent, provider: dp.provider };
+    if (dp.teams === 4) body.teams = 4;
+    else { body.teams = dp.teams; body.size = dp.size; }
+    const { ok, data } = await mxBeginRun(body, prompt);
+    if (!ok) {
+      note.style.display = 'block';
+      note.innerHTML = '<b style="color:#e0906c;">' + mxCapacityError(data) + '</b>';
+      btn.disabled = false; btn.textContent = orig;
+    }
+  } catch {
+    note.style.display = 'block';
+    note.innerHTML = '<b style="color:#e0906c;">Network error starting the run.</b>';
+    btn.disabled = false; btn.textContent = orig;
+  }
+}
+
 /* ================= live demo sandbox =================
    "Deploy now" mints a real (tiny, one-hour) Tenki sandbox through the
    same-origin broker; "Open Terminal" drops into it via ttyd. */
@@ -854,7 +1066,9 @@ function sbxStatus(kind, html) {
   sbxText().innerHTML = html;
   const off = kind !== 'live';
   termBtn().disabled = off;
-  document.getElementById('buildBtn').disabled = off;
+  // In sandboxmaxxing mode the Build button launches its own seat sandboxes, so
+  // it must NOT be gated on the single demo sandbox being live.
+  if (!dpMaxxMode()) document.getElementById('buildBtn').disabled = off;
   document.querySelectorAll('.agent-pill').forEach(p => p.disabled = off);
 }
 function sbxAgainLink(msg) {
@@ -1346,7 +1560,7 @@ requestAnimationFrame(frame);
 
 /* ================= sandboxmaxxing ================= */
 const MX_API = '/api/maxx';
-const mx = { template: null, mode: 'free', compete: false, runId: null, poll: null, started: 0, inited: false };
+const mx = { template: null, mode: 'free', compete: false, runId: null, poll: null, started: 0, inited: false, view: 'theater', playing: null, railSig: '' };
 
 async function mxInit() {
   if (mx.inited) return; mx.inited = true;
@@ -1356,15 +1570,17 @@ async function mxInit() {
     const { templates } = await r.json();
     const box = document.getElementById('mxTemplates');
     box.innerHTML = '';
-    templates.forEach((t, i) => {
+    // sensible default for this legacy launcher: a lean team, not the 24-seat roster
+    const def = (templates.find(t => t.name === 'lean-four') || templates[0] || {}).name;
+    templates.forEach((t) => {
       const b = document.createElement('button');
-      b.className = 'chip' + (i === 0 ? ' sel' : '');
+      b.className = 'chip' + (t.name === def ? ' sel' : '');
       b.textContent = t.name;
       b.title = (t.description || '') + ' · ' + t.seats + ' seats';
       b.onclick = () => { mx.template = t.name; [...box.children].forEach(c => c.classList.toggle('sel', c === b)); };
       box.appendChild(b);
-      if (i === 0) mx.template = t.name;
     });
+    mx.template = def;
   } catch { document.getElementById('mxTemplates').textContent = 'templates unavailable'; }
   mxCapacity();
 }
@@ -1389,6 +1605,42 @@ function mxErr(msg) {
   e.textContent = msg; e.style.display = 'block';
 }
 
+// Human-readable message for a failed /api/maxx start (shared by both launchers).
+function mxCapacityError(data) {
+  if (data.error === 'capacity' && data.kind === 'vms')
+    return `Not enough sandboxes free — this run needs ${data.need}, only ${data.free} available (of ${data.vmMax}). Try fewer agents/teams.`;
+  if (data.error === 'capacity')
+    return `Not enough preview URLs free — needs ${data.need}, ${data.free ?? data.freePreviews} available.`;
+  if (data.error === 'bad_repo') return 'That repo must be a public https git URL.';
+  if (data.error === 'relay_unconfigured') return 'Claude, Codex, and Frontier route through the relay — its keys aren’t set on this broker yet.';
+  if (data.error === 'harness_unconfigured') return `${data.harness} needs ${data.need} set on the broker (it has no free tier). Opencode works without a key.`;
+  return 'Could not start the run: ' + (data.error || 'unknown');
+}
+
+// Shared launcher: POST a run, then switch to the arena and start polling.
+// Returns { ok, data } so each caller can restore its own button on failure.
+async function mxBeginRun(body, promptText) {
+  const r = await fetch(MX_API, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+  const data = await r.json();
+  if (!r.ok) return { ok: false, data };
+  mx.runId = data.id; mx.started = Date.now(); mx._rendersSig = '';
+  showMaxx();                    // ensure the arena view is on screen (deep path too)
+  document.getElementById('mx-launch').style.display = 'none';
+  document.getElementById('mx-arena').style.display = 'block';
+  document.getElementById('mxRunPrompt').textContent = promptText;
+  const stop = document.getElementById('mxStop');
+  stop.disabled = false; stop.textContent = 'Stop all'; stop.onclick = mxStop;
+  // Theater is the default view for every run — watching an agent work is the
+  // point; Grid stays one click away for the whole-roster overview.
+  const tabs = document.querySelectorAll('#mxViewTabs button');
+  mxSetView('theater', tabs[1]);
+  mxRender(data);
+  clearInterval(mx.poll);
+  mx.poll = setInterval(mxTick, 3000);
+  mxTick();
+  return { ok: true, data };
+}
+
 async function mxLaunch() {
   const prompt = document.getElementById('mxPrompt').value.trim()
     || document.getElementById('mxPrompt').getAttribute('placeholder');
@@ -1399,22 +1651,11 @@ async function mxLaunch() {
   try {
     const body = { prompt, team: mx.template, mode: mx.mode, compete: mx.compete };
     if (repo) body.repo = repo;
-    const r = await fetch(MX_API, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
-    const data = await r.json();
-    if (!r.ok) {
-      if (data.error === 'capacity') mxErr(`Not enough preview URLs free — this team needs ${data.need}, ${data.freePreviews} available (of ${data.previewMax}).`);
-      else if (data.error === 'bad_repo') mxErr('That repo must be a public https git URL.');
-      else mxErr('Could not start the run: ' + (data.error || 'unknown'));
+    const { ok, data } = await mxBeginRun(body, prompt);
+    if (!ok) {
+      mxErr(mxCapacityError(data));
       btn.disabled = false; btn.textContent = 'Start sandboxmaxxing →';
-      return;
     }
-    mx.runId = data.id; mx.started = Date.now();
-    document.getElementById('mx-launch').style.display = 'none';
-    document.getElementById('mx-arena').style.display = 'block';
-    document.getElementById('mxRunPrompt').textContent = prompt;
-    mxRender(data);
-    mx.poll = setInterval(mxTick, 3000);
-    mxTick();
   } catch {
     mxErr('Network error starting the run.');
     btn.disabled = false; btn.textContent = 'Start sandboxmaxxing →';
@@ -1426,16 +1667,31 @@ async function mxTick() {
   try {
     const r = await fetch(`${MX_API}/${mx.runId}`);
     if (!r.ok) return;
-    mxRender(await r.json());
+    const run = await r.json();
+    mxRender(run);
+    if (['ended', 'stopped', 'released'].includes(run.state)) {
+      clearInterval(mx.poll);
+      const shipped = (run.teams || []).map(t => t.publishedUrl).filter(Boolean);
+      if (!run.verdict) {
+        const v = document.getElementById('mxVerdict'); v.style.display = 'block';
+        document.getElementById('mxVerdictText').innerHTML = shipped.length
+          ? `<b style="color:var(--sand);">Run ${run.state} — shipped ${shipped.length > 1 ? 'apps' : 'app'} live:</b> ` +
+            shipped.map(u => `<a href="${u}" target="_blank" rel="noopener" style="color:var(--sand);">${u.replace('https://','')} ↗</a>`).join(' · ')
+          : `<b>Run ${run.state}.</b> No team shipped a deliverable before the deadline.`;
+      }
+    }
   } catch {}
 }
 
-function mxSeatCard(s, i, team) {
+function mxSeatCard(s, i, team, terminal) {
   const lead = i === 0 || s.role === 'architect';
-  const st = s.state || 'pending';
-  const stColor = { running: '#3ecf6a', RUNNING: '#3ecf6a', starting: '#e0b34c', pending: '#e0b34c', published: 'var(--sand)', failed: '#e06c6c' }[st] || '#6a6a6a';
+  const raw = s.state || 'pending';
+  const published = raw === 'published' || s.published;
+  // Once the run is over, a lingering "running" seat is really stopped.
+  const st = terminal && !published ? (raw === 'shipped' ? 'shipped' : 'stopped') : raw;
+  const stColor = { running: '#3ecf6a', RUNNING: '#3ecf6a', starting: '#e0b34c', pending: '#e0b34c', published: 'var(--sand)', shipped: 'var(--sand)', stopped: '#6a6a6a', ended: '#6a6a6a', failed: '#e06c6c' }[st] || '#6a6a6a';
   const running = st === 'running' || st === 'RUNNING';
-  const watch = s.terminalUrl
+  const watch = (!terminal && s.terminalUrl)
     ? `<a class="mx-watch" href="${s.terminalUrl}" target="_blank" rel="noopener">watch ↗</a>`
     : running
       ? `<button class="mx-watch mx-watch-btn" onclick="mxWatch('${team}','${s.role}',this)">watch</button>`
@@ -1467,13 +1723,201 @@ async function mxWatch(team, role, btn) {
     btn.textContent = orig; btn.disabled = false;
   }
 }
+/* ---- theater: one live terminal on stage, the rest as an "up next" rail ---- */
+function mxSetView(v, btn) {
+  mx.view = v;
+  if (btn) [...btn.parentElement.children].forEach(c => c.classList.toggle('on', c === btn));
+  document.getElementById('mxTheater').style.display = v === 'theater' ? 'grid' : 'none';
+  document.getElementById('mxTeams').style.display = v === 'theater' ? 'none' : 'grid';
+  if (v === 'theater') { mx.railSig = ''; mxTick(); }
+}
+function mxSeatKey(team, role) { return team + '/' + role; }
+// Build the rail. Rebuilt only when the seat set/states change, so clicking a
+// card is never undone by the next poll.
+function mxRailRender(run) {
+  const rail = document.getElementById('mxRail');
+  if (!rail) return;
+  const teams = run.teams || [];
+  const terminal = ['ended', 'stopped', 'released'].includes(run.state);
+  const sig = teams.map(t => t.tag + ':' + t.seats.map(x => x.role + x.state + (x.terminalUrl ? '1' : '0')).join(',')).join('|') + (mx.playing || '');
+  if (sig === mx.railSig) return;
+  mx.railSig = sig;
+  const cards = [];
+  for (const t of teams) {
+    for (const seat of t.seats) {
+      const key = mxSeatKey(t.tag, seat.role);
+      const live = !terminal && (seat.state === 'running' || seat.state === 'RUNNING');
+      const st = terminal && seat.state !== 'published' ? 'stopped' : (seat.state || 'pending');
+      const dotColor = { running: '#3ecf6a', RUNNING: '#3ecf6a', published: 'var(--sand)', shipped: 'var(--sand)', failed: '#e06c6c' }[st] || '#6a6a6a';
+      const on = mx.playing === key;
+      cards.push(
+        `<button class="mx-side${on ? ' on' : ''}" onclick="mxPlay('${t.tag}','${seat.role}',this)"${live ? '' : ' disabled style="opacity:.5;cursor:default;"'}>
+           <span class="mx-side-thumb"><code>${(seat.role || '').slice(0, 22)}<br>$ ${live ? 'working…' : st}</code></span>
+           <span class="mx-side-meta">
+             <span class="mx-side-role">${seat.role}</span>
+             <span class="mx-side-model">${seat.model || ''}</span>
+             <span class="mx-side-state"><span class="mx-dot" style="background:${dotColor};width:6px;height:6px;"></span>${st} · <span class="mx-side-team">TEAM ${t.tag}</span></span>
+           </span>
+         </button>`);
+    }
+  }
+  rail.innerHTML = cards.join('') || '<span class="mono" style="font-size:12px;color:#6a6a6a;">no agents yet</span>';
+}
+// Pick a winning team: its code is copied over every other seat, then all teams
+// are told to improve it (with the user's optional feedback).
+async function mxPick(tag) {
+  if (!mx.runId) return;
+  const fb = (document.getElementById('mxPickFeedback') || {}).value || '';
+  const btns = [...document.querySelectorAll('.mx-pick')];
+  btns.forEach(b => { b.disabled = true; });
+  const mine = btns.find(b => b.textContent.includes('Team ' + tag));
+  const orig = mine ? mine.textContent : '';
+  if (mine) mine.textContent = 'starting next round…';
+  try {
+    const r = await fetch(`${MX_API}/${mx.runId}/pick`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ winner: tag, feedback: fb }),
+    });
+    const d = await r.json();
+    if (!r.ok) {
+      if (mine) mine.textContent = d.error === 'empty_workdir' ? 'no files yet' : (d.error || 'failed');
+      btns.forEach(b => { b.disabled = false; });
+      setTimeout(() => { if (mine) mine.textContent = orig; }, 2200);
+      return;
+    }
+    mx._rendersSig = ''; mx.railSig = '';
+    const v = document.getElementById('mxVerdict');
+    v.style.display = 'block';
+    document.getElementById('mxVerdictText').innerHTML =
+      `<b style="color:var(--sand);">Round ${d.round} — building on Team ${tag}.</b> ` +
+      `Its code was copied to ${d.copied} other sandbox${d.copied === 1 ? '' : 'es'}; ${d.told} agent${d.told === 1 ? '' : 's'} are now improving it` +
+      (fb ? ' with your feedback.' : '.');
+    mxTick();
+  } catch {
+    if (mine) mine.textContent = 'network error';
+    btns.forEach(b => { b.disabled = false; });
+    setTimeout(() => { if (mine) mine.textContent = orig; }, 2200);
+  }
+}
+// Send a message to the agent currently on stage. Goes to the broker, which
+// types it into that seat's tmux session — same as typing in the terminal.
+async function mxSay() {
+  const input = document.getElementById('mxSayInput');
+  const btn = document.getElementById('mxSayBtn');
+  const text = input.value.trim();
+  if (!text || !mx.runId || !mx.playing) return;
+  const [team, role] = mx.playing.split('/');
+  const orig = btn.textContent;
+  btn.disabled = true; btn.textContent = 'sending…';
+  try {
+    const r = await fetch(`${MX_API}/${mx.runId}/say`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ team, role, text }),
+    });
+    if (r.ok) { input.value = ''; btn.textContent = 'sent ✓'; setTimeout(() => { btn.textContent = orig; }, 1200); }
+    else { const d = await r.json().catch(() => ({})); btn.textContent = d.error === 'not_running' ? 'not running' : 'retry'; setTimeout(() => { btn.textContent = orig; }, 1600); }
+  } catch { btn.textContent = 'retry'; setTimeout(() => { btn.textContent = orig; }, 1600); }
+  finally { btn.disabled = false; input.focus(); }
+}
+// Drop the chosen seat's live terminal onto the stage (starts ttyd on demand).
+async function mxPlay(team, role, btn) {
+  if (!mx.runId) return;
+  const key = mxSeatKey(team, role);
+  const title = document.getElementById('mxStageTitle');
+  const sub = document.getElementById('mxStageSub');
+  const empty = document.getElementById('mxStageEmpty');
+  const frame = document.getElementById('mxStageFrame');
+  const open = document.getElementById('mxStageOpen');
+  title.textContent = role;
+  sub.textContent = 'connecting…';
+  empty.style.display = 'flex'; empty.innerHTML = '<span>starting terminal…</span>';
+  frame.style.display = 'none'; open.style.display = 'none';
+  document.getElementById('mxSayRow').style.display = 'none';
+  document.getElementById('mxSayHint').style.display = 'none';
+  if (btn) { [...document.querySelectorAll('.mx-side')].forEach(c => c.classList.remove('on')); btn.classList.add('on'); }
+  mx.playing = key;
+  try {
+    const r = await fetch(`${MX_API}/${mx.runId}/watch`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ team, role }) });
+    const d = await r.json();
+    if (!r.ok || !d.url) {
+      empty.innerHTML = '<span style="color:#e0906c;">' +
+        (d.error === 'preview_limit' ? 'At the preview-URL cap — close another terminal first.'
+         : d.error === 'not_running' ? 'That agent is no longer running.'
+         : 'Could not open that terminal.') + '</span>';
+      sub.textContent = '';
+      return;
+    }
+    frame.src = d.url;
+    frame.style.display = 'block';
+    empty.style.display = 'none';
+    open.href = d.url; open.style.display = 'inline';
+    sub.textContent = `TEAM ${team} · live`;
+    document.getElementById('mxSayRow').style.display = 'flex';
+    document.getElementById('mxSayHint').style.display = 'block';
+  } catch {
+    empty.innerHTML = '<span style="color:#e0906c;">Network error opening that terminal.</span>';
+    sub.textContent = '';
+  }
+}
 function mxRender(run) {
+  const terminal = ['ended', 'stopped', 'released'].includes(run.state);
   const secs = Math.floor((Date.now() - mx.started) / 1000);
   document.getElementById('mxElapsed').textContent = Math.floor(secs / 60) + ':' + String(secs % 60).padStart(2, '0');
   const teams = run.teams || [];
+  // A terminal run is authoritative: no seat is still "building" once the run ends,
+  // even if a stale per-seat state lingers in state.json.
+  const isRunning = s => !terminal && (s.state === 'running' || s.state === 'RUNNING');
   const allSeats = teams.flatMap(t => t.seats);
-  document.getElementById('mxBuilding').textContent = allSeats.filter(s => s.state === 'running' || s.state === 'RUNNING').length;
+  document.getElementById('mxBuilding').textContent = allSeats.filter(isRunning).length;
   document.getElementById('mxPushed').textContent = teams.filter(t => t.publishedUrl).length;
+  const label = document.getElementById('mxRunLabel');
+  if (label) label.textContent = 'Sandboxmaxxing · ' + (run.harness || 'opencode') + ' · ' + (run.state || 'running');
+
+  // embedded deliverable renders — side by side for a 2-team arena, alone for a
+  // single-team run. Rebuild only when the shipped set (or winner) changes, so
+  // live iframes aren't torn down — and the running app restarted — every poll.
+  const rendersEl = document.getElementById('mxRenders');
+  const anyShipped = teams.some(t => t.publishedUrl);
+  const rendersSig = (run.verdict && run.verdict.winner || '') + '#' +
+    teams.map(t => (t.tag || '') + ':' + (t.publishedUrl || '')).join('|');
+  if (!anyShipped) {
+    rendersEl.style.display = 'none';
+    rendersEl.innerHTML = '';
+    mx._rendersSig = '';
+  } else if (rendersSig !== mx._rendersSig) {
+    mx._rendersSig = rendersSig;
+    rendersEl.style.display = 'block';
+    const arena = teams.length > 1;
+    const shippedCount = teams.filter(t => t.publishedUrl).length;
+    rendersEl.innerHTML =
+      '<div class="mx-renders-head">Live deliverable' + (shippedCount > 1 ? 's — head to head' : '') +
+        (run.round > 1 ? ' · round ' + run.round : '') + '</div>' +
+      '<div class="mx-renders-grid" style="grid-template-columns:' + (arena ? 'repeat(2, minmax(0,1fr))' : '1fr') + ';">' +
+      teams.map(t => {
+        const won = run.verdict && run.verdict.winner === t.tag;
+        const bar = '<div class="mx-render-bar"><span class="mx-render-tag">TEAM ' + t.tag +
+          (won ? '<span class="mx-render-win-badge">✦ winner</span>' : '') + '</span>' +
+          (t.publishedUrl ? '<a class="mx-render-open" href="' + t.publishedUrl + '" target="_blank" rel="noopener">' + t.publishedUrl.replace('https://', '') + ' ↗</a>' : '') +
+          '</div>';
+        const body = t.publishedUrl
+          ? '<iframe class="mx-render-frame" src="' + t.publishedUrl + '" loading="lazy" sandbox="allow-scripts allow-same-origin allow-forms allow-pointer-lock"></iframe>'
+          : '<div class="mx-render-empty">building — no preview until this team ships</div>';
+        // Choosing a team starts another round: its build becomes the shared base
+        // for EVERY team, and they all iterate on it.
+        const pickBtn = (teams.length > 1 && t.publishedUrl)
+          ? '<button class="mx-pick" onclick="mxPick(\'' + t.tag + '\')">Continue with Team ' + t.tag + ' →</button>'
+          : '';
+        return '<div class="mx-render' + (won ? ' win' : '') + '">' + bar + body + pickBtn + '</div>';
+      }).join('') +
+      '</div>' +
+      (teams.length > 1 && anyShipped
+        ? '<div class="mx-pick-row">' +
+          '<input id="mxPickFeedback" type="text" placeholder="Optional feedback for the next round — both teams will get this">' +
+          '</div>'
+        : '');
+  }
+
+  if (mx.view === 'theater') mxRailRender(run);
 
   // teams
   const wrap = document.getElementById('mxTeams');
@@ -1482,7 +1926,7 @@ function mxRender(run) {
     const shipped = t.publishedUrl
       ? `<a class="mx-watch" href="${t.publishedUrl}" target="_blank" rel="noopener" style="font-size:12px;">${t.publishedUrl.replace('https://','')} ↗</a>`
       : `<span class="mono" style="font-size:11.5px;color:#6a6a6a;">building…</span>`;
-    const running = t.seats.filter(s => s.state === 'running' || s.state === 'RUNNING').length;
+    const running = t.seats.filter(isRunning).length;
     const won = run.verdict && run.verdict.winner === t.tag;
     return `<div class="mx-team${won ? ' win' : ''}">
       <div class="mx-team-head">
@@ -1490,7 +1934,7 @@ function mxRender(run) {
         <span class="mono" style="font-size:11.5px;color:#7c7c7c;">${running} building</span>
       </div>
       <div class="mx-team-ship">${shipped}</div>
-      <div class="mx-grid">${t.seats.map((s, i) => mxSeatCard(s, i, t.tag)).join('')}</div>
+      <div class="mx-grid">${t.seats.map((s, i) => mxSeatCard(s, i, t.tag, terminal)).join('')}</div>
     </div>`;
   }).join('');
 
@@ -1508,6 +1952,12 @@ function mxRender(run) {
 
 function mxBackToLaunch() {
   mx.runId = null;
+  mx._rendersSig = '';
+  mx.playing = null; mx.railSig = '';
+  const sf = document.getElementById('mxStageFrame');
+  if (sf) { sf.src = 'about:blank'; sf.style.display = 'none'; }
+  const rEl = document.getElementById('mxRenders');
+  if (rEl) { rEl.style.display = 'none'; rEl.innerHTML = ''; }
   document.getElementById('mx-arena').style.display = 'none';
   document.getElementById('mx-launch').style.display = 'block';
   document.getElementById('mxStart').disabled = false;
@@ -1541,6 +1991,9 @@ async function mxReleaseAll(rid) {
   try { await fetch(`${MX_API}/${rid}?all=1`, { method: 'DELETE' }); } catch {}
   mxBackToLaunch();
 }
+
+// initialize the deploy-page scale selectors to their default (single-build) state
+dpSync();
 
 // deep links — run last, after every view's state (sbx, mx) is initialized
 if (location.hash === '#deploy') showDeploy();
