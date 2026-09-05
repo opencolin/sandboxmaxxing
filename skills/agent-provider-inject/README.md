@@ -13,9 +13,9 @@ fails in a way that blames the provider. This packages the working recipes.
 As a Claude Code skill — user-level (available in every project):
 
 ```bash
-git clone --depth 1 https://github.com/opencolin/tenki-deploy /tmp/tenki-deploy
+git clone --depth 1 https://github.com/opencolin/sandboxmaxxing /tmp/sandboxmaxxing
 mkdir -p ~/.claude/skills
-cp -r /tmp/tenki-deploy/skills/agent-provider-inject ~/.claude/skills/
+cp -r /tmp/sandboxmaxxing/skills/agent-provider-inject ~/.claude/skills/
 ```
 
 Or project-level: copy it to `.claude/skills/` in your repo.
