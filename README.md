@@ -54,6 +54,9 @@ cd broker && npm install && node broker.js     # needs broker/.env (see broker.j
 
 Front end is static — open `index.html` directly for UI work.
 
+Deploying to a Tenki sandbox, restoring the host after it dies, and the current state of the live
+deployment are all in **[HANDOFF.md](HANDOFF.md)**.
+
 ## Reusable skill
 
 [`skills/agent-provider-inject`](skills/agent-provider-inject/) packages the hard part of this
