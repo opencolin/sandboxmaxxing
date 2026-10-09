@@ -11,7 +11,7 @@ mid-run, pick the better build, and every team iterates on it.
 | | |
 |---|---|
 | **Stable URL** | https://sandboxmaxxing--swc27h.us.sb.tenki.sh ✅ serving |
-| **Domain** | https://sandboxmaxxing.com ⚠️ **404 — needs one change, see Blockers** |
+| **Domain** | https://sandboxmaxxing.com ✅ serving (Vercel proxy → the stable URL) |
 | **Host sandbox** | `01a11f62-ab7e-7184-91d0-918132ceb804` (`tenki-redesign-host`, sticky, 2c/2048M) |
 | **Sticky preview URL** | id `01a11f62-ac2c-74d6-8527-b6b24e6076e1`, slug `sandboxmaxxing` |
 | **Workspace suffix** | `swc27h` (was `irtbn5` — it changed, which is why the domain broke) |
@@ -36,21 +36,33 @@ not broken. Add them to `/home/tenki/broker/.env` on the host and restart the se
 
 ## Blockers / decisions needed
 
-1. **Domain is 404.** The Vercel project `sandboxmaxxing` (`prj_040XXuVRiTDS4BhgZ96ZDYbarAPx`,
-   team `dablclub`) proxies to the *old* workspace. Fix is one line — redeploy its
-   `vercel.json` with `swc27h` in place of `irtbn5`:
+1. ~~Domain is 404.~~ **Fixed 2026-10-09.** The Vercel project `sandboxmaxxing`
+   (`prj_040XXuVRiTDS4BhgZ96ZDYbarAPx`, team `dablclub`) proxies the domain to the sandbox. When
+   the workspace suffix changes, redeploy it with the new suffix — it holds **only** `vercel.json`
+   (no `index.html`, or the static file wins over the rewrite), and **both** rules are required
+   because `/:path*` alone does not match the bare root:
    ```json
    { "rewrites": [
      { "source": "/",       "destination": "https://sandboxmaxxing--swc27h.us.sb.tenki.sh/" },
      { "source": "/:path*", "destination": "https://sandboxmaxxing--swc27h.us.sb.tenki.sh/:path*" } ]}
    ```
-   Both rules are required — `/:path*` alone does not match the bare root. The project must
-   contain **only** `vercel.json` (no `index.html`), or the static file wins over the rewrite.
-   *Could not apply on 2026-10-08: the `deploy_to_vercel` MCP tool errors with "not found"
-   while other Vercel tools work. Use the Vercel dashboard or CLI.*
+   Deploy it with the Vercel MCP `create_deployment` tool (`target: "production"`, `files` inline,
+   `project: prj_040XXuVRiTDS4BhgZ96ZDYbarAPx`, `slug: dablclub`). Note: `deploy_to_vercel` is
+   **dead** — it returns "not found" — but `create_deployment` does the same job. Don't conclude
+   the domain is unfixable just because the obvious tool fails.
+
+   *Diagnosing it:* a **Vercel**-shaped 404 means the proxy itself is broken; a **Tenki**-shaped
+   `{"code":"route_not_found","message":"no preview route registered for this host"}` means the
+   proxy is fine and is forwarding to a dead origin — i.e. only the destination suffix needs
+   updating.
+
 2. **The host keeps dying** — four times now. Once was workspace balance; the others are
    unexplained. Treat rebuild as routine (~3 min, below) and consider automating it.
-3. **Open product question: BYOC?** Does Tenki plan bring-your-own-cloud (sandboxes in the
+3. **Concurrent-job cap is 5** in this workspace (older notes say 100 — that was the previous
+   one). Resuming or minting more than 5 sessions fails with
+   `quota exceeded: max concurrent jobs reached (limit: 5)`, so an arena run of more than ~4 seats
+   will die partway even though the UI offers 24. Verify against the plan before demoing.
+4. **Open product question: BYOC?** Does Tenki plan bring-your-own-cloud (sandboxes in the
    customer's VPC)? This decides the positioning — see `SANDBOX-VS-WORKTREE.md`.
 
 ## Rebuild runbook (the thing you will actually need)
@@ -86,6 +98,19 @@ tenki sandbox exec --session $HOST -- bash -lc 'cd /home/tenki/broker && npm ins
 tenki sandbox preview-url unbind <STICKY_ID>
 tenki sandbox preview-url bind   <STICKY_ID> --session $HOST --port 8080
 ```
+
+**Keep `broker/.env` locally — it is the durable source of truth.** The host's copy dies with the
+host, and that is how `AISA_API_KEY`, `OPENROUTER_API_KEY`, `NEBIUS_API_KEY` and `TINYFISH_API_KEY`
+were permanently lost; only `TENKI_API_KEY` survived because the `tenki` CLI also stores it in
+`~/.config/tenki/config.yaml`. Keep the local file at mode 600 (it is gitignored via `.gitignore`
+lines 7 and 9) and push it on every rebuild:
+```bash
+tenki sandbox write --session $HOST --path /home/tenki/broker/.env --data-file broker/.env
+tenki sandbox exec  --session $HOST -- bash -lc 'sudo systemctl restart tenki-broker'
+```
+Do **not** put these keys anywhere else. They were briefly added as a Vercel env secret, which is
+inert — that project is a rewrite-only proxy with no build and no functions, so nothing there can
+read an env var — and it needlessly widened the blast radius of a workspace-master credential.
 
 `.env` contents (gitignored, never in the repo):
 ```
