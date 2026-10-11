@@ -85,21 +85,34 @@ Kimi-K3 TTFB measured **1.5–3.6s** here, far below the 149.9s that once forced
 
 2. **The host keeps dying** — four times now. Once was workspace balance; the others are
    unexplained. Treat rebuild as routine (~3 min, below) and consider automating it.
-3. **Capacity: arena seats now run in a dedicated 100-slot workspace** (2026-10-11).
-   The broker reads one key, `TENKI_API_KEY`, and every seat and demo sandbox is created in
-   that key's workspace. That is now separate from the workspace holding the host:
+3. **Capacity: the broker is still on the 5-slot host workspace** — a 100-slot one exists but has
+   no balance. The broker reads one key, `TENKI_API_KEY`, and creates every seat and demo sandbox
+   in that key's workspace:
 
-   | `.env` key | Workspace | Slots | Role |
+   | `.env` key | Slots | Balance | Status |
    |---|---|---|---|
-   | `TENKI_API_KEY` | same as `KEY2` | 100 | **what the broker uses** — arena seats + demo sandboxes, nothing else in it |
-   | `TENKI_API_KEY1` | host workspace | 5 | **use this to deploy** — holds `tenki-redesign-host` and the `sandboxmaxxing--swc27h` sticky URL |
-   | `KEY3`, `KEY4`/`KEY5` | other 100-slot workspaces | 100 | used by the agentcamp golden-builder — don't point the broker here |
+   | `TENKI_API_KEY` = `KEY1` | 5 | ✅ | **what the broker uses** — also holds the host + `sandboxmaxxing--swc27h` sticky URL |
+   | `KEY2` | 100 | ❌ **empty** | unusable: `workspace balance is empty; top up to start a sandbox` |
+   | `KEY3` | 100 | ✅ (has running sandboxes) | agentcamp golden-builder |
+   | `KEY4` / `KEY5` | 100 | ✅ (has running sandboxes) | agentcamp golden-builder |
+
+   **Do not judge a workspace by its quota.** On 2026-10-11 the broker was pointed at KEY2 because
+   `getUsage()` reported `0/100` — read as "100 free slots, nothing else using it". It was empty
+   *because* it has no balance. Every demo then failed with HTTP 502 and every arena seat with
+   `maxx_seat_failed … balance is empty`, so it was reverted to KEY1. `getUsage()` only reports
+   quota; the only proof a workspace works is a sandbox that actually reaches RUNNING. The fastest
+   check is the broker log: `grep demo_create_failed /home/tenki/broker/broker.log`.
+
+   To get 100 slots: top up KEY2 (cleanest — nothing else runs there) and set
+   `TENKI_API_KEY` to it, or point the broker at KEY3/KEY4, which works today but spends the
+   agentcamp workspace's balance and shares its slots.
 
    Seats living in a different workspace from the host is fine: the broker never manages its own
    preview URL with its key, its reaper only terminates IDs in its own `state.json` (it never lists
    the workspace), and seats reach the broker via the public `BROKER_PUBLIC_URL`.
 
-   To deploy, use the host-workspace key:
+   To deploy, use the host-workspace key (same as the broker's today, but keep using `KEY1`
+   explicitly so deploys keep working if the broker moves):
    ```bash
    TENKI_API_KEY=$(sed -n 's/^TENKI_API_KEY1=//p' broker/.env) tenki sandbox write --session $HOST ...
    ```
