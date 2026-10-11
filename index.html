@@ -604,8 +604,6 @@
             opencode
           </button>
         </div>
-        <button class="chip kimi-chip sel" onclick="toggleKimi()"
-          title="Free Inference — Claude and Codex run on inference the broker pays for, routed through its relay. No key or login inside the sandbox.">Free Inference</button>
         <button class="chip fullauto-chip sel" onclick="toggleFullAuto()"
           title="Skip every approval prompt inside the sandbox (claude --dangerously-skip-permissions, codex --dangerously-bypass-approvals-and-sandbox, opencode --auto)">Full-Auto · on</button>
         <button class="btn btn-primary" id="buildBtn" onclick="deployBuild(this)" disabled>Build</button>
@@ -1003,9 +1001,11 @@ function dpSync() {
   const maxx = dpMaxxMode();
   const acts = document.querySelector('#view-deploy .prompt-actions');
   // The agent picker is the HARNESS picker (claude/codex/opencode) in both modes,
-  // so it stays visible. In arena mode Kimi/Full-Auto are implied and hide.
+  // so it stays visible. In arena mode Full-Auto is implied and hides.
+  // (The inference toggle lives in 02 Access — the arena ignores it, so this box
+  // never carried a working copy.)
   acts.querySelector('.agent-select').style.display = '';
-  acts.querySelectorAll('.kimi-chip, .fullauto-chip').forEach(e => e.style.display = maxx ? 'none' : '');
+  acts.querySelectorAll('.fullauto-chip').forEach(e => e.style.display = maxx ? 'none' : '');
   // Free/Frontier only applies to opencode running its own native models.
   const nativeOpencode = buildAgent === 'opencode' && dp.provider === 'opencode';
   document.getElementById('dpModelsGroup').style.display = (maxx && nativeOpencode) ? '' : 'none';
