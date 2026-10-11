@@ -12,6 +12,7 @@ mid-run, pick the better build, and every team iterates on it.
 |---|---|
 | **Stable URL** | https://sandboxmaxxing--swc27h.us.sb.tenki.sh ✅ serving |
 | **Domain** | https://sandboxmaxxing.com ✅ serving (Vercel proxy → the stable URL) |
+| **Luxor domain** | https://luxor.sh ✅ serving the same page in the Luxor brand (same Vercel project) |
 | **Host sandbox** | `01a11f62-ab7e-7184-91d0-918132ceb804` (`tenki-redesign-host`, sticky, 2c/2048M) |
 | **Sticky preview URL** | id `01a11f62-ac2c-74d6-8527-b6b24e6076e1`, slug `sandboxmaxxing` |
 | **Workspace suffix** | `swc27h` (was `irtbn5` — it changed, which is why the domain broke) |
@@ -183,6 +184,13 @@ one feature set — never fork the file.
   controls only. **No gold buttons** — every luxor.tech button, the primary included, is white at
   10% with 8px corners. The mark is Luxor's gold peaks, as luxor.tech publishes it.
 - On luxor.sh, 02 Access leads with **luxor.computer** and says "computer" for "sandbox".
+
+**luxor.sh is attached to the same Vercel project as sandboxmaxxing.com** (`sandboxmaxxing`,
+`prj_040XXuVRiTDS4BhgZ96ZDYbarAPx`), live since 2026-10-11. That project holds only the
+`vercel.json` rewrites, so **redeploying it changes both domains** — and the page picks its brand
+from the hostname, so nothing else is needed. luxor.sh used to redirect to luxor.computer from
+agentcamp's project; it was removed there by hand (the Vercel MCP can add a project domain but
+not remove or move one).
 
 **luxor.sh's other subdomains** (`www.`, `sf.`, `office.luxor.sh`) belong to a different Vercel
 project and were deliberately left alone. luxor.computer is agentcamp's main app
