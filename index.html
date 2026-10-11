@@ -224,7 +224,7 @@
   .prompt-box textarea::placeholder { color: #666; }
   .prompt-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; padding: 2px 0 0; }
   .prompt-actions .btn { padding: 8px 20px; font-size: 14px; }
-  .agent-select { display: flex; gap: 6px; margin-right: auto; }
+  .agent-select { display: flex; gap: 6px; margin-right: auto; position: relative; }
   .agent-select .chip { margin: 0; }
   .agent-select .chip svg { display: block; }
   .agent-select .chip.sel { border-color: var(--fg); background: #161616; }
@@ -239,6 +239,30 @@
   .dp-select:focus { outline: none; border-color: #666; }
   .dp-select option { background: #0a0a0a; color: var(--fg); }
   #dpScaleNote b { color: var(--sand); font-weight: 500; }
+  /* Build box: collapsible scale (agents / teams) */
+  .dp-disclosure { display: inline-flex; align-items: center; gap: 10px; border: 1px solid var(--line); border-radius: 999px;
+    background: #060606; color: var(--fg); font: inherit; font-size: 13px; padding: 9px 16px; cursor: pointer; transition: border-color .15s; }
+  .dp-disclosure:hover { border-color: #3a3a3a; }
+  .dp-disclosure:focus-visible, .agent-trigger:focus-visible { outline: none; border-color: #666; }
+  .dp-caret { color: #8f8f8f; flex: none; transition: transform .18s; }
+  .dp-disclosure[aria-expanded="true"] .dp-caret, .agent-trigger[aria-expanded="true"] .dp-caret { transform: rotate(180deg); }
+  .dp-scale-panel { display: flex; flex-wrap: wrap; gap: 18px 34px; margin: -2px 2px 16px; padding: 14px 16px;
+    border: 1px solid var(--line); border-radius: 12px; background: #060606; }
+  .dp-scale-panel[hidden] { display: none; }
+  /* Build box: coding-agent menu */
+  .agent-trigger-label { display: inline-flex; align-items: center; gap: 7px; }
+  .agent-trigger-label svg { display: block; }
+  .agent-menu { position: absolute; top: calc(100% + 6px); left: 0; z-index: 20; display: flex; flex-direction: column; gap: 4px;
+    min-width: 168px; padding: 6px; border: 1px solid var(--line); border-radius: 12px; background: #0a0a0a; box-shadow: 0 12px 32px rgba(0,0,0,.55); }
+  .agent-menu[hidden] { display: none; }
+  .agent-menu .chip { width: 100%; justify-content: flex-start; border-color: transparent; }
+  .agent-menu .chip:hover, .agent-menu .chip:focus-visible { border-color: var(--line); outline: none; }
+  /* Build box: example prompts, four at a time */
+  .prompt-rotator { align-items: center; min-height: 40px; transition: opacity .25s ease; }
+  .prompt-rotator.fading { opacity: 0; }
+  .prompt-more { color: var(--muted); padding: 9px 12px; }
+  .prompt-more:hover { color: var(--fg); }
+  @media (prefers-reduced-motion: reduce) { .prompt-rotator, .dp-caret { transition: none; } }
   .kimi-chip.sel, .fullauto-chip.sel { border-color: var(--sand); color: var(--sand); }
   .chips { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 16px; }
   .chip {
@@ -555,20 +579,11 @@
     </div>
     <div class="build-scale">
         <div class="build-scale-group">
-          <span class="mx-ctl-label">Agents / team</span>
-          <div class="mx-seg" id="dpAgents">
-            <button class="on" onclick="dpSetSize(1,this)">1</button>
-            <button onclick="dpSetSize(4,this)">4</button>
-            <button onclick="dpSetSize(12,this)">12</button>
-            <button onclick="dpSetSize(24,this)">24</button>
-          </div>
-        </div>
-        <div class="build-scale-group">
-          <span class="mx-ctl-label">Teams</span>
-          <div class="mx-seg" id="dpTeams">
-            <button class="on" onclick="dpSetTeams(1,this)">Solo</button>
-            <button onclick="dpSetTeams(2,this)">2 · arena</button>
-          </div>
+          <span class="mx-ctl-label">Scale</span>
+          <button type="button" class="dp-disclosure" id="dpScaleToggle" aria-expanded="false" aria-controls="dpScalePanel" onclick="dpToggleScale()">
+            <span id="dpScaleSummary">1 agent · Solo</span>
+            <svg class="dp-caret" width="10" height="7" viewBox="0 0 10 7" aria-hidden="true"><path d="M1 1l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>
+          </button>
         </div>
         <div class="build-scale-group" id="dpProviderGroup">
           <span class="mx-ctl-label">Preferred provider</span>
@@ -588,51 +603,51 @@
           </div>
         </div>
       </div>
+      <div class="dp-scale-panel" id="dpScalePanel" hidden>
+        <div class="build-scale-group">
+          <span class="mx-ctl-label">Agents / team</span>
+          <div class="mx-seg" id="dpAgents">
+            <button class="on" onclick="dpSetSize(1,this)">1</button>
+            <button onclick="dpSetSize(4,this)">4</button>
+            <button onclick="dpSetSize(12,this)">12</button>
+            <button onclick="dpSetSize(24,this)">24</button>
+          </div>
+        </div>
+        <div class="build-scale-group">
+          <span class="mx-ctl-label">Teams</span>
+          <div class="mx-seg" id="dpTeams">
+            <button class="on" onclick="dpSetTeams(1,this)">Solo</button>
+            <button onclick="dpSetTeams(2,this)">2 · arena</button>
+          </div>
+        </div>
+      </div>
       <div id="dpScaleNote" class="mono"></div>
       <div class="prompt-actions">
-        <div class="agent-select" role="radiogroup" aria-label="Agent">
-          <button class="chip" onclick="selectAgent(this, 'claude')">
+        <div class="agent-select" id="agentSelect">
+          <button type="button" class="chip agent-trigger" id="agentTrigger" aria-haspopup="listbox" aria-expanded="false" aria-controls="agentMenu" onclick="toggleAgentMenu()" title="Coding agent">
+            <span class="agent-trigger-label" id="agentTriggerLabel">opencode</span>
+            <svg class="dp-caret" width="10" height="7" viewBox="0 0 10 7" aria-hidden="true"><path d="M1 1l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>
+          </button>
+          <div class="agent-menu" id="agentMenu" role="listbox" aria-label="Coding agent" hidden>
+            <button type="button" class="chip" role="option" aria-selected="false" data-agent="claude" onclick="selectAgent(this, 'claude')">
             <svg viewBox="0 0 24 24" width="18" height="18" fill="#D97757" aria-hidden="true"><path d="m4.7144 15.9555 4.7174-2.6471.079-.2307-.079-.1275h-.2307l-.7893-.0486-2.6956-.0729-2.3375-.0971-2.2646-.1214-.5707-.1215-.5343-.7042.0546-.3522.4797-.3218.686.0608 1.5179.1032 2.2767.1578 1.6514.0972 2.4468.255h.3886l.0546-.1579-.1336-.0971-.1032-.0972L6.973 9.8356l-2.55-1.6879-1.3356-.9714-.7225-.4918-.3643-.4614-.1578-1.0078.6557-.7225.8803.0607.2246.0607.8925.686 1.9064 1.4754 2.4893 1.8336.3643.3035.1457-.1032.0182-.0728-.164-.2733-1.3539-2.4467-1.445-2.4893-.6435-1.032-.17-.6194c-.0607-.255-.1032-.4674-.1032-.7285L6.287.1335 6.6997 0l.9957.1336.419.3642.6192 1.4147 1.0018 2.2282 1.5543 3.0296.4553.8985.2429.8318.091.255h.1579v-.1457l.1275-1.706.2368-2.0947.2307-2.6957.0789-.7589.3764-.9107.7468-.4918.5828.2793.4797.686-.0668.4433-.2853 1.8517-.5586 2.9021-.3643 1.9429h.2125l.2429-.2429.9835-1.3053 1.6514-2.0643.7286-.8196.85-.9046.5464-.4311h1.0321l.759 1.1293-.34 1.1657-1.0625 1.3478-.8804 1.1414-1.2628 1.7-.7893 1.36.0729.1093.1882-.0183 2.8535-.607 1.5421-.2794 1.8396-.3157.8318.3886.091.3946-.3278.8075-1.967.4857-2.3072.4614-3.4364.8136-.0425.0304.0486.0607 1.5482.1457.6618.0364h1.621l3.0175.2247.7892.522.4736.6376-.079.4857-1.2142.6193-1.6393-.3886-3.825-.9107-1.3113-.3279h-.1822v.1093l1.0929 1.0686 2.0035 1.8092 2.5075 2.3314.1275.5768-.3218.4554-.34-.0486-2.2039-1.6575-.85-.7468-1.9246-1.621h-.1275v.17l.4432.6496 2.3436 3.5214.1214 1.0807-.17.3521-.6071.2125-.6679-.1214-1.3721-1.9246L14.38 17.959l-1.1414-1.9428-.1397.079-.674 7.2552-.3156.3703-.7286.2793-.6071-.4614-.3218-.7468.3218-1.4753.3886-1.9246.3157-1.53.2853-1.9004.17-.6314-.0121-.0425-.1397.0182-1.4328 1.9672-2.1796 2.9446-1.7243 1.8456-.4128.164-.7164-.3704.0667-.6618.4008-.5889 2.386-3.0357 1.4389-1.882.929-1.0868-.0062-.1579h-.0546l-6.3385 4.1164-1.1293.1457-.4857-.4554.0608-.7467.2307-.2429 1.9064-1.3114Z"/></svg>
             claude
           </button>
-          <button class="chip" onclick="selectAgent(this, 'codex')">
+            <button type="button" class="chip" role="option" aria-selected="false" data-agent="codex" onclick="selectAgent(this, 'codex')">
             <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" fill-rule="evenodd" aria-hidden="true"><path d="M9.205 8.658v-2.26c0-.19.072-.333.238-.428l4.543-2.616c.619-.357 1.356-.523 2.117-.523 2.854 0 4.662 2.212 4.662 4.566 0 .167 0 .357-.024.547l-4.71-2.759a.797.797 0 00-.856 0l-5.97 3.473zm10.609 8.8V12.06c0-.333-.143-.57-.429-.737l-5.97-3.473 1.95-1.118a.433.433 0 01.476 0l4.543 2.617c1.309.76 2.189 2.378 2.189 3.948 0 1.808-1.07 3.473-2.76 4.163zM7.802 12.703l-1.95-1.142c-.167-.095-.239-.238-.239-.428V5.899c0-2.545 1.95-4.472 4.591-4.472 1 0 1.927.333 2.712.928L8.23 5.067c-.285.166-.428.404-.428.737v6.898zM12 15.128l-2.795-1.57v-3.33L12 8.658l2.795 1.57v3.33L12 15.128zm1.796 7.23c-1 0-1.927-.332-2.712-.927l4.686-2.712c.285-.166.428-.404.428-.737v-6.898l1.974 1.142c.167.095.238.238.238.428v5.233c0 2.545-1.974 4.472-4.614 4.472zm-5.637-5.303l-4.544-2.617c-1.308-.761-2.188-2.378-2.188-3.948A4.482 4.482 0 014.21 6.327v5.423c0 .333.143.571.428.738l5.947 3.449-1.95 1.118a.432.432 0 01-.476 0zm-.262 3.9c-2.688 0-4.662-2.021-4.662-4.519 0-.19.024-.38.047-.57l4.686 2.71c.286.167.571.167.856 0l5.97-3.448v2.26c0 .19-.07.333-.237.428l-4.543 2.616c-.619.357-1.356.523-2.117.523zm5.899 2.83a5.947 5.947 0 005.827-4.756C22.287 18.339 24 15.84 24 13.296c0-1.665-.713-3.282-1.998-4.448.119-.5.19-.999.19-1.498 0-3.401-2.759-5.947-5.946-5.947-.642 0-1.26.095-1.88.31A5.962 5.962 0 0010.205 0a5.947 5.947 0 00-5.827 4.757C1.713 5.447 0 7.945 0 10.49c0 1.666.713 3.283 1.998 4.448-.119.5-.19 1-.19 1.499 0 3.401 2.759 5.946 5.946 5.946.642 0 1.26-.095 1.88-.309a5.96 5.96 0 004.162 1.713z"/></svg>
             codex
           </button>
-          <button class="chip sel" onclick="selectAgent(this, 'opencode')">
+            <button type="button" class="chip sel" role="option" aria-selected="true" data-agent="opencode" onclick="selectAgent(this, 'opencode')">
             <svg viewBox="0 0 240 300" width="14.4" height="18" aria-hidden="true"><path d="M180 240H60V120H180V240Z" fill="#4B4646"/><path d="M180 60H60V240H180V60ZM240 300H0V0H240V300Z" fill="#F1ECEC"/></svg>
             opencode
           </button>
+          </div>
         </div>
         <button class="chip fullauto-chip sel" onclick="toggleFullAuto()"
           title="Skip every approval prompt inside the sandbox (claude --dangerously-skip-permissions, codex --dangerously-bypass-approvals-and-sandbox, opencode --auto)">Full-Auto · on</button>
         <button class="btn btn-primary" id="buildBtn" onclick="deployBuild(this)" disabled>Build</button>
       </div>
-    <div class="chips">
-      <button class="chip" onclick="fillPrompt('Run my eval suite across 50 parallel environments with reproducible snapshot states.')">AI Evaluations</button>
-      <button class="chip" onclick="fillPrompt('Spin up a code interpreter that runs untrusted code with real-time output streaming.')">Code Interpreter</button>
-      <button class="chip" onclick="fillPrompt('Give my coding agent a sandbox with a RESTful API and state persistence across runs.')">Coding Agents</button>
-      <button class="chip" onclick="fillPrompt('Process a large dataset on a cluster with optimized data locality.')">Data Analysis</button>
-      <button class="chip" onclick="fillPrompt('Let my agent run code and instantly render charts, plots, and visual outputs.')">Data Visualisation</button>
-      <button class="chip" onclick="fillPrompt('Set up RL training environments for long-horizon planning with dynamic, stateful worlds.')">RL for Agents</button>
-      <button class="chip" onclick="fillPrompt('Give my agent a virtual computer it can use like a human would.')">Computer Use</button>
-      <button class="chip" onclick="fillPrompt('Create a modern contact form with fields for name, email, subject, and message.')">Contact Form</button>
-      <button class="chip" onclick="fillPrompt('Build an interactive image editor with a canvas for uploading photos.')">Image Editor</button>
-      <button class="chip" onclick="fillPrompt('Create a snake game where the player controls a snake that grows longer as it eats food.')">Mini Game</button>
-      <button class="chip" onclick="fillPrompt('Design a compound interest calculator that shows investment growth over time.')">Finance Calculator</button>
-      <button class="chip" onclick="fillPrompt('Create a responsive HTML email template for a product launch announcement.')">Email Template</button>
-      <button class="chip" onclick="fillPrompt('Build a responsive photo gallery with a masonry grid layout.')">Photo Gallery</button>
-      <button class="chip" onclick="fillPrompt('Create an interactive quiz application with multiple choice questions.')">Quiz App</button>
-      <button class="chip" onclick="fillPrompt('Design a tip calculator that splits bills among multiple people.')">Tip Calculator</button>
-      <button class="chip" onclick="fillPrompt('Create a newsletter subscription form with email input and subscribe button.')">Newsletter Signup</button>
-      <button class="chip" onclick="fillPrompt('Build a smooth image carousel with auto-play functionality, navigation arrows, and dot indicators.')">Image Carousel</button>
-      <button class="chip" onclick="fillPrompt('Create a memory matching card game where players flip cards to find pairs.')">Memory Game</button>
-      <button class="chip" onclick="fillPrompt('Design a BMI calculator with inputs for height and weight in both metric and imperial units.')">BMI Calculator</button>
-      <button class="chip" onclick="fillPrompt('Create an event calendar with month view, day selection, and event creation.')">Event Calendar</button>
-      <button class="chip" onclick="fillPrompt('Build a shopping cart interface with product listings, add to cart functionality, quantity controls, and price calculations.')">Shopping Cart</button>
-      <button class="chip" onclick="fillPrompt('Design an audio player with play/pause controls, progress bar, volume control, and playlist.')">Music Player</button>
-      <button class="chip" onclick="fillPrompt('Create a user profile page with avatar, name, bio, and contact information.')">User Profile</button>
-    </div>
+    <div class="chips prompt-rotator" id="promptChips" aria-label="Example prompts" aria-live="polite"></div>
     <p class="prompt-foot">You're <em>one prompt away</em>. You can also drag and drop your project, or choose a file or a folder.</p>
   </section>
 
@@ -928,6 +943,83 @@ function growPrompt() {
 }
 document.getElementById('promptInput').addEventListener('input', growPrompt);
 growPrompt();
+/* Example prompts: four at a time, rotating. Pauses while hovered or focused
+   (so a chip never moves under the pointer), and while the tab is hidden.
+   Reduced-motion users get no auto-rotation, only the manual "more" button. */
+const PROMPTS = [
+  { t: "AI Evaluations", p: "Run my eval suite across 50 parallel environments with reproducible snapshot states." },
+  { t: "Code Interpreter", p: "Spin up a code interpreter that runs untrusted code with real-time output streaming." },
+  { t: "Coding Agents", p: "Give my coding agent a sandbox with a RESTful API and state persistence across runs." },
+  { t: "Data Analysis", p: "Process a large dataset on a cluster with optimized data locality." },
+  { t: "Data Visualisation", p: "Let my agent run code and instantly render charts, plots, and visual outputs." },
+  { t: "RL for Agents", p: "Set up RL training environments for long-horizon planning with dynamic, stateful worlds." },
+  { t: "Computer Use", p: "Give my agent a virtual computer it can use like a human would." },
+  { t: "Contact Form", p: "Create a modern contact form with fields for name, email, subject, and message." },
+  { t: "Image Editor", p: "Build an interactive image editor with a canvas for uploading photos." },
+  { t: "Mini Game", p: "Create a snake game where the player controls a snake that grows longer as it eats food." },
+  { t: "Finance Calculator", p: "Design a compound interest calculator that shows investment growth over time." },
+  { t: "Email Template", p: "Create a responsive HTML email template for a product launch announcement." },
+  { t: "Photo Gallery", p: "Build a responsive photo gallery with a masonry grid layout." },
+  { t: "Quiz App", p: "Create an interactive quiz application with multiple choice questions." },
+  { t: "Tip Calculator", p: "Design a tip calculator that splits bills among multiple people." },
+  { t: "Newsletter Signup", p: "Create a newsletter subscription form with email input and subscribe button." },
+  { t: "Image Carousel", p: "Build a smooth image carousel with auto-play functionality, navigation arrows, and dot indicators." },
+  { t: "Memory Game", p: "Create a memory matching card game where players flip cards to find pairs." },
+  { t: "BMI Calculator", p: "Design a BMI calculator with inputs for height and weight in both metric and imperial units." },
+  { t: "Event Calendar", p: "Create an event calendar with month view, day selection, and event creation." },
+  { t: "Shopping Cart", p: "Build a shopping cart interface with product listings, add to cart functionality, quantity controls, and price calculations." },
+  { t: "Music Player", p: "Design an audio player with play/pause controls, progress bar, volume control, and playlist." },
+  { t: "User Profile", p: "Create a user profile page with avatar, name, bio, and contact information." }
+];
+const PROMPTS_SHOWN = 4, PROMPT_ROTATE_MS = 6000;
+const promptRot = { i: 0, timer: null, held: false };
+const reduceMotion = !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
+function renderPrompts() {
+  const box = document.getElementById('promptChips');
+  if (!box) return;
+  box.textContent = '';
+  for (let k = 0; k < PROMPTS_SHOWN; k++) {
+    const pr = PROMPTS[(promptRot.i + k) % PROMPTS.length];
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'chip'; b.textContent = pr.t; b.title = pr.p;
+    b.addEventListener('click', () => fillPrompt(pr.p));
+    box.appendChild(b);
+  }
+  const more = document.createElement('button');
+  more.type = 'button'; more.className = 'chip prompt-more';
+  more.title = 'More examples'; more.setAttribute('aria-label', 'Show more example prompts');
+  more.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>';
+  // forced: the pointer is necessarily over the box when "more" is clicked
+  more.addEventListener('click', () => { rotatePrompts(() => box.lastElementChild.focus(), true); restartPromptTimer(); });
+  box.appendChild(more);
+}
+function rotatePrompts(after, forced) {
+  const box = document.getElementById('promptChips');
+  const commit = () => { promptRot.i = (promptRot.i + PROMPTS_SHOWN) % PROMPTS.length; renderPrompts(); };
+  if (!box || reduceMotion) { commit(); if (after) after(); return; }
+  box.classList.add('fading');
+  setTimeout(() => {
+    // The pointer arrived during the fade: cancel, so the chip being reached for stays put.
+    if (promptRot.held && !forced) { box.classList.remove('fading'); return; }
+    commit(); box.classList.remove('fading'); if (after) after();
+  }, 250);
+}
+function restartPromptTimer() {
+  clearInterval(promptRot.timer);
+  if (reduceMotion) return;
+  promptRot.timer = setInterval(() => { if (!promptRot.held && !document.hidden) rotatePrompts(); }, PROMPT_ROTATE_MS);
+}
+(() => {
+  const box = document.getElementById('promptChips');
+  if (!box) return;
+  const hold = v => () => { promptRot.held = v; };
+  box.addEventListener('mouseenter', hold(true));
+  box.addEventListener('mouseleave', hold(false));
+  box.addEventListener('focusin', hold(true));
+  box.addEventListener('focusout', e => { if (!box.contains(e.relatedTarget)) promptRot.held = false; });
+  renderPrompts();
+  restartPromptTimer();
+})();
 function fillPrompt(t) {
   const i = document.getElementById('promptInput');
   i.value = t; i.focus();
@@ -936,9 +1028,48 @@ function fillPrompt(t) {
 let buildAgent = 'opencode';   // free models, no key required
 function selectAgent(btn, name) {
   buildAgent = name;
-  document.querySelectorAll('.agent-select .chip').forEach(c => c.classList.toggle('sel', c === btn));
+  document.querySelectorAll('#agentMenu [data-agent]').forEach(c => {
+    c.classList.toggle('sel', c === btn);
+    c.setAttribute('aria-selected', c === btn ? 'true' : 'false');
+  });
+  renderAgentTrigger();
+  const menu = document.getElementById('agentMenu');
+  if (menu && !menu.hidden) { toggleAgentMenu(false); document.getElementById('agentTrigger').focus(); }
   if (typeof dpSync === 'function') dpSync();   // harness change updates the arena controls + note
 }
+// The trigger shows the selected agent's own icon + name, cloned from the menu.
+function renderAgentTrigger() {
+  const sel = document.querySelector('#agentMenu [data-agent].sel');
+  const label = document.getElementById('agentTriggerLabel');
+  if (!sel || !label) return;
+  label.textContent = '';
+  const icon = sel.querySelector('svg');
+  if (icon) label.appendChild(icon.cloneNode(true));
+  label.appendChild(document.createTextNode(sel.dataset.agent));
+}
+function toggleAgentMenu(force) {
+  const menu = document.getElementById('agentMenu'), trig = document.getElementById('agentTrigger');
+  const open = force === undefined ? menu.hidden : force;
+  menu.hidden = !open;
+  trig.setAttribute('aria-expanded', open ? 'true' : 'false');
+  if (open) (menu.querySelector('.sel') || menu.querySelector('[data-agent]')).focus();
+}
+document.addEventListener('click', e => {
+  const wrap = document.getElementById('agentSelect');
+  if (wrap && !wrap.contains(e.target) && !document.getElementById('agentMenu').hidden) toggleAgentMenu(false);
+});
+document.addEventListener('keydown', e => {
+  const menu = document.getElementById('agentMenu');
+  if (!menu || menu.hidden) return;
+  if (e.key === 'Escape') { toggleAgentMenu(false); document.getElementById('agentTrigger').focus(); return; }
+  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+    const opts = [...menu.querySelectorAll('[data-agent]')];
+    const i = opts.indexOf(document.activeElement);
+    opts[(i + (e.key === 'ArrowDown' ? 1 : -1) + opts.length) % opts.length].focus();
+    e.preventDefault();
+  }
+});
+renderAgentTrigger();
 let kimiOn = sessionStorage.getItem('kimiK3') !== '0';  // on unless explicitly switched off
 function renderKimi() {
   document.querySelectorAll('.kimi-chip').forEach(b => {
@@ -985,7 +1116,7 @@ const dp = { size: 1, teams: 1, mode: 'free', provider: 'aisa' };
 function dpSetProvider(p) {
   dp.provider = p;
   if (p === 'opencode') {
-    const oc = [...document.querySelectorAll('.agent-select .chip')].find(c => /opencode/.test(c.textContent));
+    const oc = document.querySelector('#agentMenu [data-agent="opencode"]');
     if (oc && buildAgent !== 'opencode') selectAgent(oc, 'opencode');
   }
   dpSync();
@@ -993,12 +1124,24 @@ function dpSetProvider(p) {
 // Every build runs through the arena, Solo/1 included: a single agent gets the
 // same on-page, click-to-watch view as a 24-agent run instead of a popup window.
 function dpMaxxMode() { return true; }
+function dpToggleScale(force) {
+  const panel = document.getElementById('dpScalePanel'), t = document.getElementById('dpScaleToggle');
+  const open = force === undefined ? panel.hidden : force;
+  panel.hidden = !open;
+  t.setAttribute('aria-expanded', open ? 'true' : 'false');
+}
+function dpScaleSummary() {
+  const agents = dp.size === 1 ? '1 agent' : dp.size + ' agents';
+  return dp.teams > 1 ? `${dp.teams} teams × ${agents}` : `${agents} · Solo`;
+}
 function dpSegOn(btn) { [...btn.parentElement.children].forEach(c => c.classList.toggle('on', c === btn)); }
 function dpSetSize(n, btn) { dp.size = n; dpSegOn(btn); dpSync(); }
 function dpSetTeams(n, btn) { dp.teams = n; dpSegOn(btn); dpSync(); }
 function dpSetMode(m, btn) { dp.mode = m; dpSegOn(btn); }
 function dpSync() {
   const maxx = dpMaxxMode();
+  const sum = document.getElementById('dpScaleSummary');
+  if (sum) sum.textContent = dpScaleSummary();
   const acts = document.querySelector('#view-deploy .prompt-actions');
   // The agent picker is the HARNESS picker (claude/codex/opencode) in both modes,
   // so it stays visible. In arena mode Full-Auto is implied and hides.
