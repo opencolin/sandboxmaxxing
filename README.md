@@ -64,9 +64,7 @@ prompt raced across Claude Code, Codex and OpenCode, each in its own throwaway T
 your account and your keys. The agent judges the builds, keeps the best and tears down the rest.
 Paste this into Claude Code or Codex:
 
-> Install the sandboxmaxxing skill from
-> https://github.com/opencolin/sandboxmaxxing/tree/main/skills/sandboxmaxxing
-> and run an arena for: *your task*
+> Read https://sandboxmaxxing.com/skill.md and follow it to run an arena for: *your task*
 
 [`skills/agent-provider-inject`](skills/agent-provider-inject/) packages the hard part of this
 project for any codebase: pointing agent CLIs at a custom inference endpoint, and the failure modes

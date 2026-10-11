@@ -879,7 +879,7 @@ setInterval(() => reap().catch((e) => log("reap_failed", { message: e.message })
 // End maxx runs past their deadline (terminate workers, keep shipped apps).
 setInterval(() => maxx.sweep().catch((e) => log("maxx_sweep_failed", { message: e.message })), 60_000);
 
-const MIME = { ".html": "text/html; charset=utf-8", ".md": "text/markdown; charset=utf-8", ".css": "text/css", ".js": "text/javascript", ".png": "image/png", ".svg": "image/svg+xml", ".ico": "image/x-icon" };
+const MIME = { ".html": "text/html; charset=utf-8", ".md": "text/markdown; charset=utf-8", ".sh": "text/plain; charset=utf-8", ".css": "text/css", ".js": "text/javascript", ".png": "image/png", ".svg": "image/svg+xml", ".ico": "image/x-icon" };
 
 function serveStatic(req, res) {
   const clean = path.normalize(decodeURIComponent(new URL(req.url, "http://x").pathname));

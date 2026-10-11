@@ -13,9 +13,11 @@ through anyone else.
 
 Paste this into Claude Code, Codex, or any coding agent with a shell:
 
-> Install the sandboxmaxxing skill from
-> https://github.com/opencolin/sandboxmaxxing/tree/main/skills/sandboxmaxxing
-> and run an arena with claude, codex and opencode for: *build a habit tracker with streaks*
+> Read https://sandboxmaxxing.com/skill.md and follow it to run an arena with claude, codex
+> and opencode for: *build a habit tracker with streaks*
+
+The skill installs itself from there: `skill.md` plus `skill/arena.sh` and
+`skill/inject-provider.sh`.
 
 ### Install by hand
 

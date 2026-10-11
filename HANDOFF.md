@@ -153,8 +153,11 @@ Keep it truthful when the product changes: one harness per run, the judge output
 `WINNER: X` plus a sentence (no scores), ended seats read "stopped".
 
 **`skills/sandboxmaxxing`** is the arena as a skill, for anyone's own coding agent on
-their own Tenki account and keys. The homepage card links to it. It never touches
-sandboxmaxxing.com.
+their own Tenki account and keys. It is **published at `sandboxmaxxing.com/skill.md`**
+(served from the site dir, plus `skill/arena.sh` and `skill/inject-provider.sh`), and
+`SKILL.md` installs itself from those three URLs. The live copy is the repo's file
+verbatim — re-push all three whenever the skill changes, or the two drift. The arena it
+runs never touches sandboxmaxxing.com.
 
 **opencode needs >= 1.18 for its free tier**, and the stock image ships 1.17.20. The
 broker (`OPENCODE_UPGRADE`, shared with maxx) and the skill both upgrade before
@@ -185,6 +188,11 @@ tenki sandbox write --session $HOST --path /home/tenki/broker/broker.js     --da
 tenki sandbox write --session $HOST --path /home/tenki/broker/maxx.js       --data-file broker/maxx.js
 tenki sandbox write --session $HOST --path /home/tenki/broker/package.json  --data-file broker/package.json
 # + broker/teams/*.json, broker/seat/websearch-mcp.js, and .env
+# + the published skill (the homepage links to sandboxmaxxing.com/skill.md):
+tenki sandbox exec  --session $HOST -- bash -lc 'mkdir -p /home/tenki/site/skill'
+tenki sandbox write --session $HOST --path /home/tenki/site/skill.md                  --data-file skills/sandboxmaxxing/SKILL.md
+tenki sandbox write --session $HOST --path /home/tenki/site/skill/arena.sh            --data-file skills/sandboxmaxxing/scripts/arena.sh
+tenki sandbox write --session $HOST --path /home/tenki/site/skill/inject-provider.sh  --data-file skills/sandboxmaxxing/scripts/inject-provider.sh
 
 # 4. deps + service
 tenki sandbox exec --session $HOST -- bash -lc 'cd /home/tenki/broker && npm install --omit=dev'

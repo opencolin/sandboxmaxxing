@@ -12,6 +12,20 @@ preview URL. **You** judge the builds, keep the winner, and the rest turn to san
 The driver is `scripts/arena.sh` next to this file. Every command below assumes
 `S=<this skill's dir>/scripts/arena.sh`.
 
+## Install (if you're reading this from a URL)
+
+If this file isn't already in a skills directory, install the skill — three files:
+
+```bash
+D=~/.claude/skills/sandboxmaxxing     # Codex or another agent: any directory you like
+mkdir -p "$D/scripts"
+curl -fsSL https://sandboxmaxxing.com/skill.md                 -o "$D/SKILL.md"
+curl -fsSL https://sandboxmaxxing.com/skill/arena.sh           -o "$D/scripts/arena.sh"
+curl -fsSL https://sandboxmaxxing.com/skill/inject-provider.sh -o "$D/scripts/inject-provider.sh"
+chmod +x "$D"/scripts/*.sh
+S="$D/scripts/arena.sh"
+```
+
 ## Before you start
 
 1. **Tenki CLI, logged in.** `tenki sandbox list` must succeed. If `tenki` is missing:
