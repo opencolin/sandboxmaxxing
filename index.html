@@ -72,6 +72,16 @@
     background: var(--fg); color: #000 !important; font-weight: 500;
   }
   .nav-cta:hover { background: #d4d4d4 !important; color: #000 !important; }
+  /* phones: the links overran the screen and made every view pan sideways. Products and
+     Docs lead nowhere yet, so they step aside for Teams and Deploy. */
+  @media (max-width: 640px) {
+    nav { padding: 14px 16px; }
+    .nav-links .nav-aux { display: none; }
+  }
+  @media (max-width: 380px) {
+    .brand { gap: 8px; }
+    .nav-links a { padding: 7px 10px; }
+  }
 
   /* ---------- Hero ---------- */
   #view-hero {
@@ -256,6 +266,12 @@
     .home-product.flip .home-product-copy { order: 0; }
     .home-table td.gain { white-space: normal; }
   }
+  @media (max-width: 640px) {
+    .home-table th, .home-table td { padding: 7px 6px; }
+    .home-table th:first-child, .home-table td:first-child { padding-left: 0; }
+    .home-table th:last-child, .home-table td:last-child { padding-right: 0; }
+    .home-table .wb::after { content: "\200B"; } /* repo names may wrap after the slash */
+  }
   .home-connect { margin-top: 84px; width: min(1100px, 92vw); display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr); gap: 36px;
     align-items: center; text-align: left; border: 1px solid var(--line); border-radius: 20px; background: #070707; padding: 36px 40px; }
   .home-connect h2 { font-size: clamp(23px, 2.2vw, 29px); line-height: 1.2; letter-spacing: -.02em; margin: 10px 0 12px; }
@@ -318,6 +334,11 @@
   }
   .panel h2 { font-size: 24px; font-weight: 600; letter-spacing: -0.02em; margin-bottom: 6px; }
   .panel .hint { color: var(--muted); font-size: 14px; margin-bottom: 22px; }
+  /* phones: 16px gutters and a slimmer panel give the content back ~40px of width */
+  @media (max-width: 640px) {
+    #view-deploy { padding: 24px 16px 80px; }
+    .panel { padding: 26px 20px; }
+  }
 
   /* live demo-sandbox status line */
   .sbx-status {
@@ -438,7 +459,11 @@
   .run-steps b { color: var(--fg); font-weight: 600; }
   /* access section */
   .access-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
-  @media (max-width: 760px) { .access-grid { grid-template-columns: 1fr; } }
+  /* Three columns only fit from ~860px: the SSH card's unwrapped snippet sets its width.
+     Below that, one column — minmax(0, …) because a plain 1fr track can't shrink under
+     the snippet either, which stretched every card past the panel on phones. The
+     snippet scrolls inside its card instead. */
+  @media (max-width: 900px) { .access-grid { grid-template-columns: minmax(0, 1fr); } }
   .access-card {
     border: 1px solid var(--line); border-radius: 12px; background: #000;
     padding: 20px; display: flex; flex-direction: column; gap: 10px;
@@ -492,6 +517,7 @@
 
   /* ---------- Sandboxmaxxing ---------- */
   #view-maxx { display: none; width: 100%; margin: 0 auto; padding: 40px clamp(24px, 5vw, 96px) 100px; }
+  @media (max-width: 640px) { #view-maxx { padding: 24px 16px 80px; } }
   .mx-lead { max-width: 640px; }
   .mx-seg { display: inline-flex; border: 1px solid var(--line); border-radius: 999px; padding: 3px; gap: 2px; background: #060606; }
   .mx-seg button { border: none; background: transparent; color: var(--muted); font: inherit; font-size: 13px; padding: 7px 15px; border-radius: 999px; cursor: pointer; transition: all .15s; }
@@ -501,6 +527,8 @@
   .mx-repo input { flex: 1; background: none; border: none; color: var(--fg); font-family: var(--mono); font-size: 13px; outline: none; }
   .mx-repo input::placeholder { color: #5a5a5a; }
   .mx-ctl-label { font-family: var(--mono); font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: #7c7c7c; margin-bottom: 11px; }
+  .mx-controls { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 26px 40px; }
+  @media (max-width: 640px) { .mx-controls { grid-template-columns: minmax(0, 1fr); gap: 22px; } }
   .mx-role { border: 1px solid var(--line); border-radius: 999px; padding: 5px 11px; font-size: 12px; color: #9a9a9a; }
   .mx-role.lead { border-color: rgba(var(--sand-rgb),.55); color: var(--sand); }
   #mxTemplates .chip { cursor: pointer; }
@@ -669,9 +697,9 @@
     <span class="brand-name"><span class="b-ixio">sandboxmaxxing</span><span class="b-lx">luxor.sh</span></span>
   </div>
   <div class="nav-links">
-    <a href="#">Products</a>
+    <a href="#" class="nav-aux">Products</a>
     <a href="#" onclick="showMaxx(); return false;">Teams</a>
-    <a href="#">Docs</a>
+    <a href="#" class="nav-aux">Docs</a>
     <a href="#" class="nav-cta" onclick="showDeploy(); return false;">Deploy</a>
   </div>
 </nav>
@@ -805,8 +833,8 @@ build a habit tracker with streaks</pre>
       <table class="home-table">
         <thead><tr><th>Build</th><th>GitHub-hosted</th><th>Tenki</th><th></th></tr></thead>
         <tbody>
-          <tr><td>n8n-io/n8n</td><td class="num">55m 58s</td><td class="num">29m 15s</td><td class="gain">47.7% faster · 30.3% cheaper</td></tr>
-          <tr><td>chainwayxyz/citrea</td><td class="num">37m 3s</td><td class="num">12m 12s</td><td class="gain">67.1% faster · 56.1% cheaper</td></tr>
+          <tr><td>n8n-io/<span class="wb"></span>n8n</td><td class="num">55m 58s</td><td class="num">29m 15s</td><td class="gain">47.7% faster · 30.3% cheaper</td></tr>
+          <tr><td>chainwayxyz/<span class="wb"></span>citrea</td><td class="num">37m 3s</td><td class="num">12m 12s</td><td class="gain">67.1% faster · 56.1% cheaper</td></tr>
         </tbody>
       </table>
       <div class="home-table-cap">Real open-source builds · Tenki's published results · <a href="https://tenki.cloud/docs/runners/benchmarks" target="_blank" rel="noopener">methodology →</a></div>
@@ -1008,7 +1036,7 @@ tenki sandbox ssh --session my-box</div>
 
       <div style="height:1px;background:#1a1a1a;margin:26px 0 22px;"></div>
 
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:26px 40px;">
+      <div class="mx-controls">
         <div>
           <div class="mx-ctl-label">Team template</div>
           <div id="mxTemplates" class="chips" style="margin-top:0;"></div>
