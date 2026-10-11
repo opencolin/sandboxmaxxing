@@ -57,7 +57,16 @@ Front end is static — open `index.html` directly for UI work.
 Deploying to a Tenki sandbox, restoring the host after it dies, and the current state of the live
 deployment are all in **[HANDOFF.md](HANDOFF.md)**.
 
-## Reusable skill
+## Reusable skills
+
+[`skills/sandboxmaxxing`](skills/sandboxmaxxing/) gives your own coding agent the arena: one
+prompt raced across Claude Code, Codex and OpenCode, each in its own throwaway Tenki sandbox on
+your account and your keys. The agent judges the builds, keeps the best and tears down the rest.
+Paste this into Claude Code or Codex:
+
+> Install the sandboxmaxxing skill from
+> https://github.com/opencolin/sandboxmaxxing/tree/main/skills/sandboxmaxxing
+> and run an arena for: *your task*
 
 [`skills/agent-provider-inject`](skills/agent-provider-inject/) packages the hard part of this
 project for any codebase: pointing agent CLIs at a custom inference endpoint, and the failure modes
