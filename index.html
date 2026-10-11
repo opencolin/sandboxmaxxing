@@ -605,7 +605,7 @@
           </button>
         </div>
         <button class="chip kimi-chip sel" onclick="toggleKimi()"
-          title="Route agents through kimi-relay to Kimi K3 on Nebius Token Factory — no agent login needed">Kimi K3 · on</button>
+          title="Free Inference — Claude and Codex run on inference the broker pays for, routed through its relay. No key or login inside the sandbox.">Free Inference</button>
         <button class="chip fullauto-chip sel" onclick="toggleFullAuto()"
           title="Skip every approval prompt inside the sandbox (claude --dangerously-skip-permissions, codex --dangerously-bypass-approvals-and-sandbox, opencode --auto)">Full-Auto · on</button>
         <button class="btn btn-primary" id="buildBtn" onclick="deployBuild(this)" disabled>Build</button>
@@ -658,7 +658,7 @@
         opencode
       </button>
       <button class="chip kimi-chip sel" onclick="toggleKimi()"
-        title="Route agents through kimi-relay to Kimi K3 on Nebius Token Factory — no agent login needed">Kimi K3 · on</button>
+        title="Free Inference — Claude and Codex run on inference the broker pays for, routed through its relay. No key or login inside the sandbox.">Free Inference</button>
       <button class="chip fullauto-chip sel" onclick="toggleFullAuto()"
         title="Skip every approval prompt inside the sandbox (claude --dangerously-skip-permissions, codex --dangerously-bypass-approvals-and-sandbox, opencode --auto)">Full-Auto · on</button>
       <span class="agents-note">Pre-installed in every sandbox — your local login and config stay untouched.</span>
@@ -945,7 +945,11 @@ let kimiOn = sessionStorage.getItem('kimiK3') !== '0';  // on unless explicitly 
 function renderKimi() {
   document.querySelectorAll('.kimi-chip').forEach(b => {
     b.classList.toggle('sel', kimiOn);
-    b.textContent = 'Kimi K3 · ' + (kimiOn ? 'on' : 'off');
+    b.textContent = kimiOn ? 'Free Inference' : 'Bring Your Own Key';
+    // Only claude/codex are affected — opencode always runs its own free models.
+    b.title = kimiOn
+      ? 'Free Inference — Claude and Codex run on inference the broker pays for, routed through its relay. No key or login inside the sandbox.'
+      : 'Bring Your Own Key — Claude and Codex run natively, so you sign in or supply your own API key inside the sandbox.';
   });
 }
 function toggleKimi() {
