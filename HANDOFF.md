@@ -322,5 +322,8 @@ exposed**. Worth raising with Tenki.
 
 - `SANDBOX-VS-WORKTREE.md` — evidence brief, 32 fact-checked sources, including an honest
   section on where our argument is weak.
+- `RECURSIVE-AGENTS.md` — research brief on agents that improve their own harness, and on
+  forkable sandboxes (contree.dev, Tenki snapshots, E2B, Morph and others), with two first
+  experiments for the arena.
 - `SANDBOXMAXXING.md` — the feature spec.
 - `skills/agent-provider-inject/` — reusable, published skill.
