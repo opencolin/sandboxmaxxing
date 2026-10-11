@@ -214,6 +214,48 @@
   .ha-badge { flex: none; margin-left: auto; color: var(--sand); border: 1px solid rgba(var(--sand-rgb),.4); border-radius: 999px; padding: 1px 9px; font-size: 10.5px; }
   @keyframes haIn { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: none; } }
   @keyframes haBlink { 50% { opacity: 0; } }
+  /* ---- product sections: Code Reviewer, Runners ---- */
+  .home-product { margin-top: 84px; width: min(1100px, 92vw); display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr); gap: 40px;
+    align-items: center; text-align: left; border: 1px solid var(--line); border-radius: 20px; background: #070707; padding: 40px; }
+  .home-product.flip .home-product-copy { order: 2; }
+  .home-product h2 { font-size: clamp(25px, 2.5vw, 33px); line-height: 1.15; letter-spacing: -.02em; margin: 10px 0 14px; }
+  .home-product p { color: #a3a3a3; font-size: 15px; line-height: 1.6; }
+  .home-product code { font-family: var(--mono); font-size: .88em; color: #d6d6d6; }
+  .home-points { list-style: none; padding: 0; margin: 18px 0 24px; display: flex; flex-direction: column; gap: 9px; }
+  .home-points li { position: relative; padding-left: 18px; font-size: 14px; color: #cfcfcf; line-height: 1.5; }
+  .home-points li::before { content: ""; position: absolute; left: 0; top: .55em; width: 6px; height: 6px; border-radius: 2px; background: var(--sand); }
+  .home-product-cta { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+  .home-product-cta .btn { text-decoration: none; }
+  .home-price { font-family: var(--mono); font-size: 12.5px; color: var(--muted); }
+  .home-product-visual { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+  .rv-body { padding: 14px 16px; font-size: 13px; line-height: 1.6; color: #cfcfcf; }
+  .rv-body b { font-weight: 600; color: #e6e6e6; }
+  .rv-sev { display: flex; gap: 8px; flex-wrap: wrap; margin: 8px 0 12px; }
+  .rv-chip { font-family: var(--mono); font-size: 11px; padding: 2px 9px; border-radius: 999px; border: 1px solid #2a2a2a; }
+  .rv-chip.high { color: #ff8a8a; border-color: #5c2124; } .rv-chip.med { color: #e0b34c; border-color: #5a4512; } .rv-chip.low { color: #8fbf86; border-color: #24452a; }
+  .rv-finding { border-left: 2px solid #5c2124; background: #0f0b0b; border-radius: 0 6px 6px 0; padding: 7px 11px; margin-bottom: 10px; font-family: var(--mono); font-size: 12px; line-height: 1.6; }
+  .rv-tag { color: #ff8a8a; margin-right: 6px; }
+  .rv-row { margin-top: 4px; font-size: 12.5px; }
+  .rv-body b.rv-high { color: #ff8a8a; }
+  .home-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .home-table th, .home-table td { text-align: left; padding: 7px 10px; border-bottom: 1px solid #1c1c1c; }
+  .home-table th { font-weight: 500; font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: #6a6a6a; }
+  .home-table td { color: #a3a3a3; }
+  .home-table td.num { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+  .home-table td.gain { color: #7ee2a8; font-size: 12px; white-space: nowrap; }
+  .home-table tr.us td { color: var(--fg); font-weight: 500; }
+  .home-table tr.us td:first-child { color: var(--sand); }
+  .home-table-cap { font-size: 12px; color: #6a6a6a; line-height: 1.5; }
+  .home-table-cap a { color: var(--sand); text-decoration: none; }
+  .home-table-cap a:hover { text-decoration: underline; }
+  .yaml { margin: 0; padding: 14px 16px; font-family: var(--mono); font-size: 12.5px; line-height: 1.75; color: #8a8a8a; white-space: pre; overflow-x: auto; }
+  .yaml .del { display: block; color: #ff8a8a; background: rgba(255, 90, 95, .08); }
+  .yaml .add { display: block; color: #7ee2a8; background: rgba(52, 211, 153, .08); }
+  @media (max-width: 900px) {
+    .home-product { grid-template-columns: 1fr; padding: 26px 20px; gap: 26px; }
+    .home-product.flip .home-product-copy { order: 0; }
+    .home-table td.gain { white-space: normal; }
+  }
   .home-connect { margin-top: 84px; width: min(1100px, 92vw); display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr); gap: 36px;
     align-items: center; text-align: left; border: 1px solid var(--line); border-radius: 20px; background: #070707; padding: 36px 40px; }
   .home-connect h2 { font-size: clamp(23px, 2.2vw, 29px); line-height: 1.2; letter-spacing: -.02em; margin: 10px 0 12px; }
@@ -624,7 +666,7 @@
     <div class="brand-mark" aria-hidden="true">
       <i></i><i></i><i></i><i class="gap"></i><i></i><i class="gap"></i><i class="gap"></i><i class="gap"></i><i></i>
     </div>
-    <span class="brand-name">sandboxmaxxing</span>
+    <span class="brand-name"><span class="b-ixio">sandboxmaxxing</span><span class="b-lx">luxor.sh</span></span>
   </div>
   <div class="nav-links">
     <a href="#">Products</a>
@@ -684,10 +726,82 @@
     </div>
   </section>
 
+  <section class="home-product" id="homeReviewer" aria-labelledby="homeReviewerTitle">
+    <div class="home-product-copy">
+      <div class="home-eyebrow">Code Reviewer</div>
+      <h2 id="homeReviewerTitle">Every PR reviewed before your coffee gets cold.</h2>
+      <p>Install the GitHub App and reviews start on your next pull request. It reads your <code>AGENTS.md</code> or <code>CLAUDE.md</code>, and reports only issues the PR introduces and can fix.</p>
+      <ul class="home-points">
+        <li>Tag <code>@tenki-reviewer</code> for a review on demand</li>
+        <li>Tune severity from low to critical, and how much detail you get</li>
+        <li>Never trains on your code or your reviews</li>
+      </ul>
+      <div class="home-product-cta">
+        <a class="btn btn-primary" href="https://tenki.cloud/products/code-reviewer" target="_blank" rel="noopener">Start reviewing →</a>
+        <span class="home-price">$1 per review</span>
+      </div>
+    </div>
+    <div class="home-product-visual">
+      <div class="mx-stage" aria-hidden="true">
+        <div class="mx-stage-bar"><span class="mx-dot published"></span><span class="mx-stage-title">tenki-reviewer</span><span class="mx-stage-sub">commented · example review</span></div>
+        <div class="rv-body">
+          <div><b>Summary</b> <span class="ha-dim">— reviewed 6 files</span></div>
+          <div class="rv-sev"><span class="rv-chip high">1 high</span><span class="rv-chip med">1 medium</span><span class="rv-chip low">0 low</span></div>
+          <div class="rv-finding"><span class="rv-tag">HIGH</span> api/search.ts:42<br><span class="ha-dim">SQL built from the request's query string — parameterize it.</span></div>
+          <div class="rv-row">Security risk: <b class="rv-high">HIGH</b> <span class="ha-dim">— exploitable vulnerability found</span></div>
+          <div class="rv-row">Recommendation: <b class="rv-high">CHANGES REQUESTED</b></div>
+        </div>
+      </div>
+      <table class="home-table">
+        <thead><tr><th>Reviewer</th><th>Bugs caught</th><th>F1</th></tr></thead>
+        <tbody>
+          <tr class="us"><td>Tenki</td><td class="num">68.9%</td><td class="num">41.7</td></tr>
+          <tr><td>Devin</td><td class="num">36.1%</td><td class="num">40.9</td></tr>
+          <tr><td>Cursor</td><td class="num">32.0%</td><td class="num">39.4</td></tr>
+          <tr><td>CodeRabbit</td><td class="num">28.7%</td><td class="num">26.7</td></tr>
+          <tr><td>Greptile</td><td class="num">36.1%</td><td class="num">22.1</td></tr>
+          <tr><td>Copilot</td><td class="num">24.6%</td><td class="num">21.4</td></tr>
+        </tbody>
+      </table>
+      <div class="home-table-cap">122 real production bugs, scored by a 3-LLM judge panel · Tenki's published benchmark · <a href="https://tenki.cloud/benchmarks/code-reviewer" target="_blank" rel="noopener">methodology →</a></div>
+    </div>
+  </section>
+  <section class="home-product flip" id="homeRunners" aria-labelledby="homeRunnersTitle">
+    <div class="home-product-copy">
+      <div class="home-eyebrow">GitHub Actions runners</div>
+      <h2 id="homeRunnersTitle">Cut your CI bill and build times with one line.</h2>
+      <p>Bare-metal Linux (AMD EPYC) and Apple Silicon macOS runners for GitHub Actions. Change <code>runs-on</code> — or let the Migration Wizard open the pull request — and your jobs run on fresh, disposable VMs.</p>
+      <ul class="home-points">
+        <li>Linux x64, and macOS on Apple Silicon (M4 Pro)</li>
+        <li>Dependency caching built in; <code>actions/cache</code> keeps working</li>
+        <li>Every job on a fresh VM, so nothing carries between runs</li>
+      </ul>
+      <div class="home-product-cta">
+        <a class="btn btn-primary" href="https://tenki.cloud/products/runners" target="_blank" rel="noopener">Move a workflow →</a>
+        <span class="home-price">$0.002 per core-minute</span>
+      </div>
+    </div>
+    <div class="home-product-visual">
+      <div class="mx-stage" aria-hidden="true">
+        <div class="mx-stage-bar"><span class="mx-stage-title">.github/workflows/ci.yml</span><span class="mx-stage-sub">the whole migration</span></div>
+        <pre class="yaml">jobs:
+  build:<span class="del">-   runs-on: ubuntu-latest</span><span class="add">+   runs-on: tenki-standard-medium-4c-8g</span>    steps:
+      - uses: actions/checkout@v4</pre>
+      </div>
+      <table class="home-table">
+        <thead><tr><th>Build</th><th>GitHub-hosted</th><th>Tenki</th><th></th></tr></thead>
+        <tbody>
+          <tr><td>n8n-io/n8n</td><td class="num">55m 58s</td><td class="num">29m 15s</td><td class="gain">47.7% faster · 30.3% cheaper</td></tr>
+          <tr><td>chainwayxyz/citrea</td><td class="num">37m 3s</td><td class="num">12m 12s</td><td class="gain">67.1% faster · 56.1% cheaper</td></tr>
+        </tbody>
+      </table>
+      <div class="home-table-cap">Real open-source builds · Tenki's published results · <a href="https://tenki.cloud/docs/runners/benchmarks" target="_blank" rel="noopener">methodology →</a></div>
+    </div>
+  </section>
   <section class="home-connect" aria-labelledby="homeConnectTitle">
     <div class="home-connect-copy">
       <div class="home-eyebrow">For your coding agent</div>
-      <h2 id="homeConnectTitle">Run arenas from Claude Code or Codex</h2>
+      <h2 id="homeConnectTitle">Run agent swarms from Claude Code or Codex</h2>
       <p>A skill that gives your agent the whole architecture on your own Tenki account and your own keys: race several builds in throwaway sandboxes, judge them, keep the best.</p>
       <a class="home-connect-link" href="/skill.md" target="_blank" rel="noopener">Read the skill →</a>
     </div>
@@ -999,9 +1113,9 @@ tenki sandbox ssh --session my-box</div>
     </div>
     <div class="foot-col">
       <h4>Products</h4>
-      <a href="#">Instant Sandbox</a>
-      <a href="#">Code Reviewer</a>
-      <a href="#">GitHub Runners</a>
+      <a href="#" onclick="showDeploy(); return false;">Instant Sandbox</a>
+      <a href="#" onclick="goToSection('homeReviewer'); return false;">Code Reviewer</a>
+      <a href="#" onclick="goToSection('homeRunners'); return false;">GitHub Runners</a>
     </div>
     <div class="foot-col">
       <h4>Resources</h4>
@@ -1478,6 +1592,11 @@ window.addEventListener('scroll', () =>
   document.getElementById('nav').classList.toggle('scrolled', scrollY > 8));
 
 /* ================= homepage ================= */
+// Footer product links: back to the homepage, then down to that product's section.
+function goToSection(id) {
+  showHero();
+  setTimeout(() => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 80);
+}
 // "New" pill: straight to the VS Code card in 02 Access.
 function goToCode() {
   showDeploy();
