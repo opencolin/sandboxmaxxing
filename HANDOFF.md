@@ -19,20 +19,30 @@ mid-run, pick the better build, and every team iterates on it.
 
 ## What works vs. what's dark
 
-**Working:** the site, the arena UI, `/api/maxx`, minting demo sandboxes, the opencode
-harness (keyless free models), theater view, pick-a-winner rounds, writable terminals + `/say`.
+**Verified working** (probed 2026-10-11, not just "key present"): the site, the arena UI,
+`/api/maxx`, minting demo sandboxes, theater view, pick-a-winner rounds, writable terminals +
+`/say`, and these providers:
 
-**Dark — needs API keys that were lost with the old host disk:**
+| Key | Status | Unlocks |
+|---|---|---|
+| `AISA_API_KEY` | ✅ 200 | Default provider. **claude + codex harnesses.** `claude-sonnet-5` via Anthropic `/v1/messages` and `gpt-5.3-codex` via OpenAI `/v1/responses` both round-trip in ~2s |
+| `OPENROUTER_API_KEY` | ✅ 200 | OpenRouter provider + the arena judge |
+| `TINYFISH_API_KEY` | ✅ 200 | Agent web search. Both shapes `seat/websearch-mcp.js` sends are confirmed: `GET tinyfish-search?query=…` and `POST tinyfish-fetch {"urls":[…]}` |
+| `NEBIUS_API_KEY` | ❌ 401 | Nebius/Kimi-K3 provider + opencode Frontier mode — **still broken** |
 
-| Key | Unlocks |
-|---|---|
-| `AISA_API_KEY` | Default provider. **claude + codex harnesses** (`api.aisa.one`) |
-| `OPENROUTER_API_KEY` | OpenRouter provider + the arena judge |
-| `NEBIUS_API_KEY` | Nebius/Kimi-K3 provider + opencode Frontier mode. Must be a **Token Factory API key**, not an IAM token (`v1.CmQK…` style IAM tokens 401) |
-| `TINYFISH_API_KEY` | Agent web search (free tier, but a key is still required) |
+**Nebius is the one outstanding key.** It returns
+`{"detail":"Couldn't authenticate. Reason: Unable authenticate"}`. The trap: an **IAM token** is
+easily mistaken for a **Token Factory API key** — IAM tokens are long and 401 exactly like this.
+Get the key from Token Factory specifically. Frontier mode and Kimi-K3 stay dark until then.
 
-Everything degrades closed — missing key means the route 404s and the feature is absent,
-not broken. Add them to `/home/tenki/broker/.env` on the host and restart the service.
+Everything degrades closed — a missing key means the route 404s and the feature is absent, not
+broken. `opencode` on keyless free models needs no key and always works, which is why a
+misconfigured run silently falls back to it instead of erroring.
+
+**Validating keys** — auth alone is not enough, since the broker pins specific model ids
+(`AISA_MODEL_CLAUDE`, `AISA_MODEL_CODEX`, `OPENROUTER_MODEL`). A valid key plus a model the account
+cannot serve fails only at run time, mid-demo. Check `/v1/models` for the pinned ids, then send one
+real request in each wire format the harnesses use.
 
 ## Blockers / decisions needed
 
