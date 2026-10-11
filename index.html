@@ -4,6 +4,23 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ixio — Agent Native Infrastructure</title>
+<script>
+/* Brand by domain. luxor.sh (or ?brand=luxor, for previews) wears Luxor's look, set here
+   before anything paints so the ixio brand never flashes. Everything else is shared: one
+   page, one broker, every feature on both domains. */
+(function () {
+  var q = new URLSearchParams(location.search).get('brand');
+  if (!(/(^|\.)luxor\.sh$/.test(location.hostname) || q === 'luxor')) return;
+  document.documentElement.setAttribute('data-brand', 'luxor');
+  document.title = 'Luxor — Agent Native Infrastructure';
+  var f = document.createElement('link'); f.rel = 'stylesheet';
+  f.href = 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap';
+  document.head.appendChild(f);
+  var i = document.createElement('link'); i.rel = 'icon'; i.type = 'image/svg+xml';
+  i.href = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="-0.5 -0.5 30 27" fill="#FFC547"><path d="M11.566 2.436c1.5-2.405 5.003-2.398 6.493.013l10.677 17.275c1.573 2.546-.258 5.83-3.25 5.83h-7.6c1.487-1.692 1.927-4.271.63-6.485l-.05-.086-5.115-8.402A5.39 5.39 0 0 0 8.1 7.996l3.467-5.56Z"/><path d="M3.748 25.567h8.558c2.928 0 4.722-3.247 3.187-5.769l-4.26-6.997c-1.458-2.396-4.898-2.403-6.366-.013L.57 19.785c-1.548 2.522.245 5.782 3.18 5.782Z"/></svg>');
+  document.head.appendChild(i);
+})();
+</script>
 <style>
   :root {
     --bg: #000;
@@ -12,18 +29,21 @@
     --line: #262626;
     --card: #0a0a0a;
     --sand: #d9c9a3;
+    --sand-rgb: 217, 201, 163; --sand-tint: #14120c; --sand-hi: #ede1c4;
     --accent: #fff;
     --radius: 12px;
+    --font: -apple-system, BlinkMacSystemFont, "Segoe UI", "Inter", Helvetica, Arial, sans-serif;
+    --mono: "SF Mono", "Menlo", "Consolas", monospace;
   }
   * { margin: 0; padding: 0; box-sizing: border-box; }
   html, body { background: var(--bg); color: var(--fg); }
   body {
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Inter", Helvetica, Arial, sans-serif;
+    font-family: var(--font);
     -webkit-font-smoothing: antialiased;
     min-height: 100vh;
     overflow-x: hidden;
   }
-  .mono { font-family: "SF Mono", "Menlo", "Consolas", monospace; }
+  .mono { font-family: var(--mono); }
 
   /* ---------- Nav ---------- */
   nav {
@@ -86,7 +106,7 @@
   }
   .tagline span {
     position: absolute; left: 0; right: 0;
-    font-family: "SF Mono", "Menlo", "Consolas", monospace;
+    font-family: var(--mono);
     font-size: 15px; color: var(--muted); letter-spacing: .04em;
     opacity: 0; transform: translateY(8px);
     transition: opacity .5s ease, transform .5s ease;
@@ -150,11 +170,11 @@
   }
 
   /* ---- homepage sections below the hero ---- */
-  .home-eyebrow { font-family: "SF Mono", monospace; font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: #6a6a6a; }
+  .home-eyebrow { font-family: var(--mono); font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: #6a6a6a; }
   .hero-news { display: inline-flex; align-items: center; gap: 10px; margin-top: 18px; padding: 5px 14px 5px 5px; border: 1px solid var(--line);
     border-radius: 999px; background: #0a0a0a; color: #cfcfcf; font: inherit; font-size: 13px; cursor: pointer; transition: border-color .15s, color .15s; }
   .hero-news:hover, .hero-news:focus-visible { border-color: #444; color: var(--fg); outline: none; }
-  .hero-news-tag { background: rgba(217,201,163,.14); color: var(--sand); border: 1px solid rgba(217,201,163,.35); border-radius: 999px; padding: 2px 9px; font-size: 11.5px; font-weight: 500; }
+  .hero-news-tag { background: rgba(var(--sand-rgb),.14); color: var(--sand); border: 1px solid rgba(var(--sand-rgb),.35); border-radius: 999px; padding: 2px 9px; font-size: 11.5px; font-weight: 500; }
   .hero-news-arrow { color: #7a7a7a; }
   .home-agents { margin-top: 64px; display: flex; flex-direction: column; align-items: center; gap: 16px; }
   .home-agents-row { display: flex; flex-wrap: wrap; justify-content: center; gap: 14px 26px; max-width: min(900px, 92vw); }
@@ -173,11 +193,11 @@
   .home-step[aria-current="step"] { border-left-color: var(--sand); color: var(--fg); }
   .home-step[aria-current="step"] .home-step-desc { max-height: 110px; opacity: 1; margin-top: 6px; }
   .home-arena { display: grid; grid-template-columns: minmax(0, 1fr) 196px; gap: 12px; align-items: start; }
-  .home-arena-body { height: 296px; padding: 14px 16px; font-family: "SF Mono", monospace; font-size: 12px; line-height: 1.75; color: #cfcfcf; overflow: hidden; }
+  .home-arena-body { height: 296px; padding: 14px 16px; font-family: var(--mono); font-size: 12px; line-height: 1.75; color: #cfcfcf; overflow: hidden; }
   .home-arena-rail { display: flex; flex-direction: column; gap: 6px; }
   .home-arena-rail .mx-side { cursor: default; padding: 6px; }
   .home-arena-rail .mx-side:hover { background: none; border-color: transparent; }
-  .home-arena-rail .mx-side.on { background: #14120c; border-color: rgba(217,201,163,.5); }
+  .home-arena-rail .mx-side.on { background: var(--sand-tint); border-color: rgba(var(--sand-rgb),.5); }
   .home-arena-rail .mx-side-thumb { width: 60px; height: 40px; }
   .home-arena-rail .mx-side-role, .home-arena-rail .mx-side-model { display: block; }
   .ha-line { white-space: pre-wrap; animation: haIn .25s ease both; }
@@ -185,13 +205,13 @@
   .ha-caret { display: inline-block; width: 7px; height: 13px; background: #cfcfcf; vertical-align: -2px; margin-left: 2px; animation: haBlink 1s steps(1) infinite; }
   .ha-builds { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px; }
   .ha-build { border: 1px solid #232323; border-radius: 9px; padding: 10px; height: 92px; display: flex; flex-direction: column; justify-content: space-between; }
-  .ha-build.win { border-color: rgba(217,201,163,.55); background: #14120c; }
+  .ha-build.win { border-color: rgba(var(--sand-rgb),.55); background: var(--sand-tint); }
   .ha-build b { font-family: Inter, system-ui, sans-serif; font-size: 12.5px; font-weight: 500; color: #e6e6e6; }
   .ha-pick { display: inline-block; border: 1px solid #333; border-radius: 999px; padding: 3px 11px; font-size: 11px; color: #9a9a9a; margin-right: 6px; }
   .ha-pick.win { border-color: var(--sand); color: var(--sand); }
   .ha-url { border: 1px solid #232323; border-radius: 9px; padding: 11px 12px; display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
   .ha-url-text { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .ha-badge { flex: none; margin-left: auto; color: var(--sand); border: 1px solid rgba(217,201,163,.4); border-radius: 999px; padding: 1px 9px; font-size: 10.5px; }
+  .ha-badge { flex: none; margin-left: auto; color: var(--sand); border: 1px solid rgba(var(--sand-rgb),.4); border-radius: 999px; padding: 1px 9px; font-size: 10.5px; }
   @keyframes haIn { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: none; } }
   @keyframes haBlink { 50% { opacity: 0; } }
   .home-connect { margin-top: 84px; width: min(1100px, 92vw); display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr); gap: 36px;
@@ -202,11 +222,11 @@
   .home-connect-link:hover { text-decoration: underline; }
   .home-connect-paste { border: 1px solid #1e1e1e; border-radius: 12px; background: #0a0a0a; overflow: hidden; }
   .home-connect-bar { display: flex; align-items: center; justify-content: space-between; padding: 9px 12px; border-bottom: 1px solid #1e1e1e;
-    font-family: "SF Mono", monospace; font-size: 10.5px; letter-spacing: .08em; text-transform: uppercase; color: #6a6a6a; }
+    font-family: var(--mono); font-size: 10.5px; letter-spacing: .08em; text-transform: uppercase; color: #6a6a6a; }
   .home-copy { border: 1px solid var(--line); background: #111; color: var(--fg); font: inherit; font-size: 11px; letter-spacing: 0; text-transform: none;
     padding: 4px 11px; border-radius: 999px; cursor: pointer; }
   .home-copy:hover { border-color: #555; }
-  .home-connect-paste pre { margin: 0; padding: 14px 16px; font-family: "SF Mono", monospace; font-size: 12.5px; line-height: 1.7; color: #d6d6d6;
+  .home-connect-paste pre { margin: 0; padding: 14px 16px; font-family: var(--mono); font-size: 12.5px; line-height: 1.7; color: #d6d6d6;
     white-space: pre-wrap; word-break: break-word; }
   @media (max-width: 900px) { .home-connect { grid-template-columns: 1fr; padding: 26px 20px; gap: 22px; } }
   .home-shipped { margin-top: 84px; width: min(1100px, 92vw); text-align: left; }
@@ -219,7 +239,7 @@
   .home-app-frame iframe { width: 400%; height: 400%; border: 0; transform: scale(.25); transform-origin: 0 0; pointer-events: none; }
   .home-app-meta { padding: 12px 14px 14px; }
   .home-app-prompt { font-size: 13.5px; color: #d6d6d6; line-height: 1.45; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-  .home-app-sub { font-family: "SF Mono", monospace; font-size: 10.5px; color: #7a7a7a; margin-top: 6px; }
+  .home-app-sub { font-family: var(--mono); font-size: 10.5px; color: #7a7a7a; margin-top: 6px; }
   @media (max-width: 1080px) { .home-flow { grid-template-columns: 1fr; gap: 30px; } }
   @media (max-width: 900px) {
     .home-flow { grid-template-columns: 1fr; padding: 26px 20px; gap: 26px; }
@@ -251,7 +271,7 @@
     padding: 34px 32px; margin-bottom: 26px;
   }
   .panel-label {
-    font-family: "SF Mono", "Menlo", monospace; font-size: 11.5px; letter-spacing: .12em;
+    font-family: var(--mono); font-size: 11.5px; letter-spacing: .12em;
     text-transform: uppercase; color: var(--sand); margin-bottom: 8px;
   }
   .panel h2 { font-size: 24px; font-weight: 600; letter-spacing: -0.02em; margin-bottom: 6px; }
@@ -260,7 +280,7 @@
   /* live demo-sandbox status line */
   .sbx-status {
     display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
-    font-family: "SF Mono", "Menlo", monospace; font-size: 13px; color: var(--muted);
+    font-family: var(--mono); font-size: 13px; color: var(--muted);
     margin: -4px 0 20px;
   }
   .sbx-dot { width: 8px; height: 8px; border-radius: 50%; background: #555; flex: none; }
@@ -279,7 +299,7 @@
   .prompt-input-row { display: flex; align-items: flex-start; }
   .prompt-glyph {
     display: flex; align-items: flex-start; padding: 17px 4px 0 16px;
-    color: var(--sand); font-family: "SF Mono", monospace; font-size: 15px; user-select: none;
+    color: var(--sand); font-family: var(--mono); font-size: 15px; user-select: none;
   }
   .prompt-box textarea {
     flex: 1; background: transparent; border: none; outline: none;
@@ -360,7 +380,7 @@
     border: 1px solid var(--line); border-bottom: none;
     background: linear-gradient(180deg, #0e0e0e, #060606);
     display: flex; align-items: center; justify-content: center;
-    color: #555; font-family: "SF Mono", monospace; font-size: 13px; letter-spacing: .06em;
+    color: #555; font-family: var(--mono); font-size: 13px; letter-spacing: .06em;
     transform: rotate(-1.2deg) translateY(6px); transform-origin: bottom left;
   }
   .tpl-card:hover .tpl-art { color: var(--sand); }
@@ -372,7 +392,7 @@
     font-size: 14px; color: var(--muted); line-height: 1.55;
   }
   .run-steps li:last-child { border-bottom: none; }
-  .run-steps .n { font-family: "SF Mono", "Menlo", monospace; font-size: 12px; color: var(--sand); padding-top: 3px; }
+  .run-steps .n { font-family: var(--mono); font-size: 12px; color: var(--sand); padding-top: 3px; }
   .run-steps b { color: var(--fg); font-weight: 600; }
   /* access section */
   .access-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
@@ -387,7 +407,7 @@
   .access-card p { color: var(--muted); font-size: 13.5px; line-height: 1.55; flex: 1; }
   .access-card .btn { align-self: flex-start; padding: 9px 18px; font-size: 14px; }
   .access-snip {
-    font-family: "SF Mono", "Menlo", monospace; font-size: 12px; color: #8a8a8a;
+    font-family: var(--mono); font-size: 12px; color: #8a8a8a;
     background: #0a0a0a; border: 1px solid var(--line); border-radius: 6px;
     padding: 8px 10px; white-space: pre; overflow-x: auto; line-height: 1.75;
   }
@@ -398,7 +418,7 @@
 
   .runner-sizes { align-items: center; margin-top: 20px; }
   .sizes-label { font-size: 12.5px; color: #666; margin-right: 4px; }
-  .chip-mono { font-family: "SF Mono", "Menlo", monospace; font-size: 12px; }
+  .chip-mono { font-family: var(--mono); font-size: 12px; }
 
   footer {
     border-top: 1px solid var(--line); color: #555; font-size: 13px;
@@ -410,7 +430,7 @@
   }
   @media (max-width: 760px) { .foot-grid { grid-template-columns: 1fr 1fr; } }
   .foot-brand .brand { margin-bottom: 12px; }
-  .foot-tag { color: #444; font-family: "SF Mono", "Menlo", monospace; font-size: 12.5px; }
+  .foot-tag { color: #444; font-family: var(--mono); font-size: 12.5px; }
   .foot-col h4 {
     color: var(--fg); font-size: 13px; font-weight: 600;
     margin-bottom: 14px; letter-spacing: .01em;
@@ -436,34 +456,34 @@
   .mx-seg button.on { background: var(--fg); color: #000; font-weight: 500; }
   .mx-seg button:disabled { opacity: .4; cursor: not-allowed; }
   .mx-repo { display: flex; align-items: center; gap: 10px; border: 1px solid var(--line); border-radius: 10px; background: #060606; padding: 11px 14px; margin-top: 12px; }
-  .mx-repo input { flex: 1; background: none; border: none; color: var(--fg); font-family: "SF Mono", monospace; font-size: 13px; outline: none; }
+  .mx-repo input { flex: 1; background: none; border: none; color: var(--fg); font-family: var(--mono); font-size: 13px; outline: none; }
   .mx-repo input::placeholder { color: #5a5a5a; }
-  .mx-ctl-label { font-family: "SF Mono", monospace; font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: #7c7c7c; margin-bottom: 11px; }
+  .mx-ctl-label { font-family: var(--mono); font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: #7c7c7c; margin-bottom: 11px; }
   .mx-role { border: 1px solid var(--line); border-radius: 999px; padding: 5px 11px; font-size: 12px; color: #9a9a9a; }
-  .mx-role.lead { border-color: rgba(217,201,163,.55); color: var(--sand); }
+  .mx-role.lead { border-color: rgba(var(--sand-rgb),.55); color: var(--sand); }
   #mxTemplates .chip { cursor: pointer; }
   #mxTemplates .chip.sel { border-color: var(--fg); color: var(--fg); background: #161616; }
   /* arena */
   .mx-arena-head { display: flex; align-items: center; gap: 20px; flex-wrap: wrap; margin-bottom: 20px; }
-  .mx-stat { text-align: right; } .mx-stat b { font-family: "SF Mono", monospace; font-size: 18px; font-weight: 500; display: block; } .mx-stat span { font-family: "SF Mono", monospace; font-size: 10px; color: #6a6a6a; letter-spacing: .08em; }
+  .mx-stat { text-align: right; } .mx-stat b { font-family: var(--mono); font-size: 18px; font-weight: 500; display: block; } .mx-stat span { font-family: var(--mono); font-size: 10px; color: #6a6a6a; letter-spacing: .08em; }
   .mx-team { border: 1px solid #222; border-radius: 16px; background: #070707; padding: 16px; }
-  .mx-team.win { border-color: rgba(217,201,163,.5); background: #0c0a06; }
+  .mx-team.win { border-color: rgba(var(--sand-rgb),.5); background: #0c0a06; }
   .mx-team-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
-  .mx-team-tag { font-family: "SF Mono", monospace; font-size: 13px; font-weight: 600; letter-spacing: .1em; color: var(--fg); }
+  .mx-team-tag { font-family: var(--mono); font-size: 13px; font-weight: 600; letter-spacing: .1em; color: var(--fg); }
   .mx-win-badge { color: var(--sand); font-weight: 600; letter-spacing: .04em; margin-left: 6px; }
   .mx-team-ship { margin-bottom: 12px; min-height: 16px; }
   .mx-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
   .mx-seat { border: 1px solid #222; border-radius: 11px; background: #0b0b0b; padding: 12px 13px 11px; display: flex; flex-direction: column; gap: 9px; }
-  .mx-seat.lead { border-color: rgba(217,201,163,.5); background: #0d0b07; }
+  .mx-seat.lead { border-color: rgba(var(--sand-rgb),.5); background: #0d0b07; }
   .mx-seat-top { display: flex; align-items: center; gap: 7px; }
   .mx-seat-role { font-size: 12.5px; color: #e6e6e6; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .mx-seat-model { font-family: "SF Mono", monospace; font-size: 10.5px; color: #7f7f7f; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .mx-seat-model { font-family: var(--mono); font-size: 10.5px; color: #7f7f7f; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .mx-seat-foot { display: flex; align-items: center; justify-content: space-between; }
   .mx-seat-state { font-size: 11px; }
-  .mx-watch { font-size: 11px; color: var(--sand); text-decoration: none; } .mx-watch:hover { color: #ede1c4; }
+  .mx-watch { font-size: 11px; color: var(--sand); text-decoration: none; } .mx-watch:hover { color: var(--sand-hi); }
   .mx-watch.off { color: #4a4a4a; pointer-events: none; }
   .mx-watch-btn { background: none; border: none; padding: 0; font: inherit; font-size: 11px; cursor: pointer; }
-  .mx-watch-btn:hover { color: #ede1c4; text-decoration: underline dotted; }
+  .mx-watch-btn:hover { color: var(--sand-hi); text-decoration: underline dotted; }
   .mx-watch-btn:disabled { color: #6a6a6a; cursor: default; text-decoration: none; }
   .mx-dot { width: 7px; height: 7px; border-radius: 50%; flex: none; display: block; background: #555; }
   .mx-dot.RUNNING { background: #3ecf6a; box-shadow: 0 0 7px rgba(62,207,106,.6); }
@@ -479,11 +499,11 @@
   .mx-stage { border: 1px solid #1e1e1e; border-radius: 14px; background: #0a0a0a; overflow: hidden; }
   .mx-stage-bar { display: flex; align-items: center; gap: 10px; padding: 11px 14px; border-bottom: 1px solid #1e1e1e; }
   .mx-stage-title { font-size: 13px; color: #e6e6e6; font-weight: 500; }
-  .mx-stage-sub { font-family: "SF Mono", monospace; font-size: 10.5px; color: #7f7f7f; }
-  .mx-stage-open { margin-left: auto; font-family: "SF Mono", monospace; font-size: 11px; color: var(--sand); text-decoration: none; white-space: nowrap; }
-  .mx-stage-open:hover { color: #ede1c4; }
+  .mx-stage-sub { font-family: var(--mono); font-size: 10.5px; color: #7f7f7f; }
+  .mx-stage-open { margin-left: auto; font-family: var(--mono); font-size: 11px; color: var(--sand); text-decoration: none; white-space: nowrap; }
+  .mx-stage-open:hover { color: var(--sand-hi); }
   .mx-stage-frame { width: 100%; height: 560px; border: 0; display: block; background: #000; }
-  .mx-stage-empty { height: 560px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; color: #6a6a6a; font-family: "SF Mono", monospace; font-size: 12.5px; text-align: center; padding: 0 24px; }
+  .mx-stage-empty { height: 560px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; color: #6a6a6a; font-family: var(--mono); font-size: 12.5px; text-align: center; padding: 0 24px; }
   .mx-say { display: flex; gap: 8px; align-items: center; padding: 10px 12px; border-top: 1px solid #1e1e1e; background: #070707; }
   .mx-say input { flex: 1; min-width: 0; background: #000; border: 1px solid var(--line); border-radius: 8px; color: var(--fg); font: inherit; font-size: 13px; padding: 9px 12px; }
   .mx-say input:focus { outline: none; border-color: #666; }
@@ -491,33 +511,33 @@
   .mx-say button { border: 1px solid var(--line); background: #111; color: var(--fg); font: inherit; font-size: 12.5px; padding: 9px 16px; border-radius: 8px; cursor: pointer; white-space: nowrap; }
   .mx-say button:hover:not(:disabled) { border-color: #666; }
   .mx-say button:disabled { opacity: .5; cursor: default; }
-  .mx-say-hint { font-family: "SF Mono", monospace; font-size: 10.5px; color: #6a6a6a; padding: 0 12px 10px; }
+  .mx-say-hint { font-family: var(--mono); font-size: 10.5px; color: #6a6a6a; padding: 0 12px 10px; }
   .mx-rail { display: flex; flex-direction: column; gap: 9px; max-height: 620px; overflow-y: auto; padding-right: 4px; }
-  .mx-rail-head { font-family: "SF Mono", monospace; font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: #6a6a6a; margin-bottom: 2px; }
+  .mx-rail-head { font-family: var(--mono); font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: #6a6a6a; margin-bottom: 2px; }
   .mx-side { display: flex; gap: 10px; align-items: flex-start; padding: 8px; border: 1px solid transparent; border-radius: 11px; cursor: pointer; transition: background .12s, border-color .12s; text-align: left; background: none; font: inherit; width: 100%; }
   .mx-side:hover { background: #101010; border-color: #232323; }
-  .mx-side.on { background: #14120c; border-color: rgba(217,201,163,.5); }
+  .mx-side.on { background: var(--sand-tint); border-color: rgba(var(--sand-rgb),.5); }
   .mx-side-thumb { flex: none; width: 92px; height: 58px; border-radius: 7px; background: #000; border: 1px solid #232323; display: flex; align-items: center; justify-content: center; overflow: hidden; position: relative; }
-  .mx-side-thumb code { font-family: "SF Mono", monospace; font-size: 8.5px; color: #3ecf6a; line-height: 1.25; padding: 4px; overflow: hidden; word-break: break-all; }
-  .mx-side.on .mx-side-thumb { border-color: rgba(217,201,163,.55); }
+  .mx-side-thumb code { font-family: var(--mono); font-size: 8.5px; color: #3ecf6a; line-height: 1.25; padding: 4px; overflow: hidden; word-break: break-all; }
+  .mx-side.on .mx-side-thumb { border-color: rgba(var(--sand-rgb),.55); }
   .mx-side-meta { min-width: 0; flex: 1; }
   .mx-side-role { font-size: 12.5px; color: #e6e6e6; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .mx-side-model { font-family: "SF Mono", monospace; font-size: 10px; color: #7f7f7f; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 2px; }
+  .mx-side-model { font-family: var(--mono); font-size: 10px; color: #7f7f7f; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 2px; }
   .mx-side-state { display: inline-flex; align-items: center; gap: 5px; font-size: 10.5px; color: #7c7c7c; margin-top: 4px; }
-  .mx-side-team { font-family: "SF Mono", monospace; font-size: 9.5px; letter-spacing: .08em; color: #6a6a6a; }
+  .mx-side-team { font-family: var(--mono); font-size: 9.5px; letter-spacing: .08em; color: #6a6a6a; }
   @media (max-width: 900px) { .mx-theater { grid-template-columns: 1fr; } .mx-rail { max-height: 300px; flex-direction: row; overflow-x: auto; } .mx-side { width: 260px; flex: none; } }
   /* embedded deliverable renders */
-  .mx-renders-head { font-family: "SF Mono", monospace; font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: #6a6a6a; margin-bottom: 10px; }
+  .mx-renders-head { font-family: var(--mono); font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: #6a6a6a; margin-bottom: 10px; }
   .mx-renders-grid { display: grid; gap: 16px; align-items: start; }
   .mx-render { border: 1px solid #1e1e1e; border-radius: 14px; background: #0a0a0a; overflow: hidden; }
-  .mx-render.win { border-color: rgba(217,201,163,.55); box-shadow: 0 0 0 1px rgba(217,201,163,.25); }
+  .mx-render.win { border-color: rgba(var(--sand-rgb),.55); box-shadow: 0 0 0 1px rgba(var(--sand-rgb),.25); }
   .mx-render-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 14px; border-bottom: 1px solid #1e1e1e; }
-  .mx-render-tag { font-family: "SF Mono", monospace; font-size: 11px; letter-spacing: .08em; color: #cfcfcf; }
+  .mx-render-tag { font-family: var(--mono); font-size: 11px; letter-spacing: .08em; color: #cfcfcf; }
   .mx-render.win .mx-render-tag { color: var(--sand); }
   .mx-render-win-badge { color: var(--sand); font-size: 10px; margin-left: 6px; }
-  .mx-render-open { font-family: "SF Mono", monospace; font-size: 11px; color: var(--sand); text-decoration: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 55%; }
-  .mx-render-open:hover { color: #ede1c4; }
-  .mx-pick { display: block; width: calc(100% - 24px); margin: 0 12px 12px; padding: 10px 14px; border: 1px solid rgba(217,201,163,.45); background: #14120c; color: var(--sand); font: inherit; font-size: 12.5px; border-radius: 9px; cursor: pointer; }
+  .mx-render-open { font-family: var(--mono); font-size: 11px; color: var(--sand); text-decoration: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 55%; }
+  .mx-render-open:hover { color: var(--sand-hi); }
+  .mx-pick { display: block; width: calc(100% - 24px); margin: 0 12px 12px; padding: 10px 14px; border: 1px solid rgba(var(--sand-rgb),.45); background: var(--sand-tint); color: var(--sand); font: inherit; font-size: 12.5px; border-radius: 9px; cursor: pointer; }
   .mx-pick:hover:not(:disabled) { background: #1b1810; border-color: var(--sand); }
   .mx-pick:disabled { opacity: .5; cursor: default; }
   .mx-pick-row { margin-top: 10px; }
@@ -525,13 +545,78 @@
   .mx-pick-row input:focus { outline: none; border-color: #666; }
   .mx-pick-row input::placeholder { color: #5a5a5a; }
   .mx-render-frame { width: 100%; height: 440px; border: 0; display: block; background: #000; }
-  .mx-render-empty { height: 440px; display: flex; align-items: center; justify-content: center; color: #5a5a5a; font-family: "SF Mono", monospace; font-size: 12px; }
+  .mx-render-empty { height: 440px; display: flex; align-items: center; justify-content: center; color: #5a5a5a; font-family: var(--mono); font-size: 12px; }
+
+  /* ================= Luxor (luxor.sh) =================
+     Switched on by the <head> script. Drawn after luxor.tech and agentcamp's luxor theme
+     (web/public/themes.css): black, Inter, Geist Mono, hairline panes, and ONE gold, used the
+     way luxor.tech uses it — eyebrows, focus, the mark, the active control — never as a
+     button fill. Every luxor.tech button, its primary "Start Now" included, is white at 10%
+     with 8px corners (read off the live site, 2026-10-11). */
+  .b-lx, .brand-lx, .b-lx-block { display: none; }
+  :root[data-brand="luxor"] .b-ixio, :root[data-brand="luxor"] .brand-mark { display: none; }
+  :root[data-brand="luxor"] .b-lx { display: inline; }
+  :root[data-brand="luxor"] .brand-lx { display: block; }
+  :root[data-brand="luxor"] .b-lx-block { display: flex; }
+  :root[data-brand="luxor"] {
+    --bg: #000000; --fg: #fafafa; --muted: #a3a3a3; --line: #262626; --card: #0c0c0e;
+    --sand: #ffc547; --sand-rgb: 255, 197, 71; --sand-tint: #2a1f06; --sand-hi: #ffd063;
+    --font: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+    --mono: "Geist Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    color-scheme: dark;
+  }
+  :root[data-brand="luxor"] body { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+  :root[data-brand="luxor"] ::selection { background: rgba(255, 197, 71, .32); color: #ffffff; }
+  :root[data-brand="luxor"] :focus-visible { outline: 2px solid #ffc547; outline-offset: 2px; }
+  /* nav: black at 60%, blurred, a hairline; the mark is Luxor's gold peaks */
+  :root[data-brand="luxor"] nav { background: rgba(0, 0, 0, .6); -webkit-backdrop-filter: blur(16px) saturate(140%); backdrop-filter: blur(16px) saturate(140%); border-bottom-color: rgba(255, 255, 255, .1); }
+  :root[data-brand="luxor"] .brand-name { font-weight: 500; font-size: 18px; letter-spacing: -.01em; }
+  /* headings: Inter 600 and luxor.tech's white-to-grey sweep */
+  :root[data-brand="luxor"] h1.hero-title, :root[data-brand="luxor"] .panel h2,
+  :root[data-brand="luxor"] .home-flow h2, :root[data-brand="luxor"] .home-connect h2, :root[data-brand="luxor"] .home-shipped h2 {
+    font-weight: 600; text-shadow: none; background: linear-gradient(90deg, #ffffff, #b8b8b8);
+    -webkit-background-clip: text; background-clip: text; color: transparent; -webkit-text-fill-color: transparent;
+  }
+  /* eyebrows: gold small caps spaced wide (12px, .2em — luxor.tech's own) */
+  :root[data-brand="luxor"] .home-eyebrow, :root[data-brand="luxor"] .panel-label {
+    font-family: var(--font); font-size: 12px; font-weight: 500; letter-spacing: .2em; text-transform: uppercase; color: #ffc547;
+  }
+  /* buttons: luxor.tech's one style */
+  :root[data-brand="luxor"] .btn { border-radius: 8px; font-size: 14px; font-weight: 500; }
+  :root[data-brand="luxor"] .btn-primary, :root[data-brand="luxor"] .btn-ghost, :root[data-brand="luxor"] .nav-cta {
+    background: rgba(255, 255, 255, .1) !important; color: #ffffff !important; border: 0;
+  }
+  :root[data-brand="luxor"] .btn-primary:hover:not([disabled]), :root[data-brand="luxor"] .btn-ghost:hover:not([disabled]),
+  :root[data-brand="luxor"] .nav-cta:hover { background: rgba(255, 255, 255, .16) !important; color: #ffffff !important; }
+  /* pills take the buttons' 8px corners; the active control is gold on a gold tint (10.6:1) */
+  :root[data-brand="luxor"] .chip, :root[data-brand="luxor"] .dp-select, :root[data-brand="luxor"] .dp-disclosure,
+  :root[data-brand="luxor"] .hero-news, :root[data-brand="luxor"] .home-copy, :root[data-brand="luxor"] .mx-seg { border-radius: 8px; }
+  :root[data-brand="luxor"] .mx-seg button { border-radius: 6px; }
+  :root[data-brand="luxor"] .mx-seg button.on { background: #2a1f06; color: #ffc547; box-shadow: inset 0 0 0 1px #6b4f12; }
+  /* hero: luxor.tech's gold silk where ixio's sand animation was */
+  :root[data-brand="luxor"] #logoCanvas, :root[data-brand="luxor"] .hero-glow { display: none; }
+  :root[data-brand="luxor"] .hero-canvas-wrap {
+    aspect-ratio: 640 / 380;
+    background:
+      linear-gradient(112deg, rgba(0,0,0,0) 48.2%, rgba(255,247,220,.55) 48.7%, rgba(0,0,0,0) 49.1%, rgba(0,0,0,0) 52.6%, rgba(255,250,230,.45) 53%, rgba(0,0,0,0) 53.4%),
+      repeating-linear-gradient(112deg, rgba(0,0,0,0) 0 22px, rgba(0,0,0,.2) 22px 27px, rgba(0,0,0,0) 27px 54px),
+      linear-gradient(117deg, rgba(0,0,0,0) 18%, rgba(184,134,11,.35) 28%, rgba(255,215,122,.5) 33%, rgba(120,84,12,.3) 38%, rgba(0,0,0,0) 46%),
+      linear-gradient(112deg, rgba(0,0,0,0) 32%, rgba(88,62,10,.55) 40%, rgba(184,134,11,.9) 46%, #ffcd5a 51%, #ffe8a0 54%, rgba(214,160,40,.95) 58%, rgba(110,78,14,.7) 64%, rgba(30,22,6,.5) 72%, rgba(0,0,0,0) 80%),
+      #000;
+    -webkit-mask-image: radial-gradient(ellipse 62% 70% at 50% 50%, #000 38%, transparent 76%);
+    mask-image: radial-gradient(ellipse 62% 70% at 50% 50%, #000 38%, transparent 76%);
+  }
+  /* 02 Access: luxor.computer is the default, so it leads, full width, edged in gold */
+  :root[data-brand="luxor"] .access-card.lx-computer { grid-column: 1 / -1; border-color: #6b4f12; background: linear-gradient(180deg, #14110a, #0c0c0e); }
+  :root[data-brand="luxor"] .access-card.lx-computer:hover { border-color: #ffc547; }
+  :root[data-brand="luxor"] .access-card.lx-computer .btn { text-decoration: none; }
 </style>
 </head>
 <body>
 
 <nav id="nav">
   <div class="brand" onclick="showHero()">
+    <svg class="brand-lx" viewBox="-0.5 -0.5 30 27" width="22" height="20" fill="#FFC547" aria-hidden="true"><path d="M11.566 2.436c1.5-2.405 5.003-2.398 6.493.013l10.677 17.275c1.573 2.546-.258 5.83-3.25 5.83h-7.6c1.487-1.692 1.927-4.271.63-6.485l-.05-.086-5.115-8.402A5.39 5.39 0 0 0 8.1 7.996l3.467-5.56Z"/><path d="M3.748 25.567h8.558c2.928 0 4.722-3.247 3.187-5.769l-4.26-6.997c-1.458-2.396-4.898-2.403-6.366-.013L.57 19.785c-1.548 2.522.245 5.782 3.18 5.782Z"/></svg>
     <div class="brand-mark" aria-hidden="true">
       <i></i><i></i><i></i><i class="gap"></i><i></i><i class="gap"></i><i class="gap"></i><i class="gap"></i><i></i>
     </div>
@@ -717,8 +802,8 @@ build a habit tracker with streaks</pre>
   <!-- 2. access -->
   <section class="panel">
     <div class="panel-label">02 · Access</div>
-    <h2>Step into your sandbox</h2>
-    <p class="hint">Human in the loop when you need it — jump in, poke around, jump out. The sandbox keeps running.</p>
+    <h2>Step into your <span class="b-ixio">sandbox</span><span class="b-lx">computer</span></h2>
+    <p class="hint">Human in the loop when you need it — jump in, poke around, jump out. The <span class="b-ixio">sandbox</span><span class="b-lx">computer</span> keeps running.</p>
     <div class="agents-row2">
       <span class="agents-label">Start your agent</span>
       <div class="agent-select" id="accessAgentSelect">
@@ -746,22 +831,27 @@ build a habit tracker with streaks</pre>
       <button class="chip fullauto-chip sel" onclick="toggleFullAuto()"
         title="Skip every approval prompt inside the sandbox (claude --dangerously-skip-permissions, codex --dangerously-bypass-approvals-and-sandbox, opencode --auto)">Full-Auto · on</button>
       <button class="btn btn-primary" id="accessStartBtn" onclick="openTerminal(accessAgent, this)" disabled>Start →</button>
-      <span class="agents-note">Pre-installed in every sandbox — your local login and config stay untouched.</span>
+      <span class="agents-note">Pre-installed in every <span class="b-ixio">sandbox</span><span class="b-lx">computer</span> — your local login and config stay untouched.</span>
     </div>
     <div class="access-grid">
+      <div class="access-card lx-computer b-lx-block">
+        <h3>Your Luxor computer</h3>
+        <p>A desktop in your browser with a real Linux machine behind it — every coding agent already installed, plus VS Code, files and terminals.</p>
+        <a class="btn btn-primary" href="https://luxor.computer" target="_blank" rel="noopener">Open luxor.computer →</a>
+      </div>
       <div class="access-card">
         <h3>VS Code in the browser</h3>
-        <p>A full editor attached to your sandbox's filesystem, one click away.</p>
+        <p>A full editor attached to your <span class="b-ixio">sandbox's</span><span class="b-lx">computer's</span> filesystem, one click away.</p>
         <button class="btn btn-ghost" id="openCodeBtn" onclick="openCode(this)" disabled>Open VS Code</button>
       </div>
       <div class="access-card">
         <h3>Terminal in the browser</h3>
-        <p>A real shell in the sandbox, streamed to your browser. No setup.</p>
+        <p>A real shell in the <span class="b-ixio">sandbox</span><span class="b-lx">computer</span>, streamed to your browser. No setup.</p>
         <button class="btn btn-ghost" id="openTerminalBtn" onclick="openTerminal()" disabled>Open Terminal</button>
       </div>
       <div class="access-card">
         <h3>SSH tunnel</h3>
-        <p>One click will mint a tunnel into this sandbox. Today, SSH into your own from a terminal:</p>
+        <p>One click will mint a tunnel into this <span class="b-ixio">sandbox</span><span class="b-lx">computer</span>. Today, SSH into your own from a terminal:</p>
         <div class="access-snip">curl -fsSL https://tenki.cloud/install.sh | bash
 tenki login
 tenki sandbox create --name my-box
@@ -885,7 +975,7 @@ tenki sandbox ssh --session my-box</div>
       <span style="display:inline-flex;align-items:center;gap:7px;"><span class="mx-dot running"></span> building</span>
       <span style="display:inline-flex;align-items:center;gap:7px;"><span class="mx-dot pending"></span> starting</span>
       <span style="display:inline-flex;align-items:center;gap:7px;"><span class="mx-dot published"></span> shipped</span>
-      <span style="display:inline-flex;align-items:center;gap:7px;color:var(--sand);"><span style="width:9px;height:9px;border:1px solid rgba(217,201,163,.6);border-radius:3px;"></span> architect · strongest model</span>
+      <span style="display:inline-flex;align-items:center;gap:7px;color:var(--sand);"><span style="width:9px;height:9px;border:1px solid rgba(var(--sand-rgb),.6);border-radius:3px;"></span> architect · strongest model</span>
       <span style="margin-left:auto;color:#6a6a6a;">seats run headless — click <span style="color:var(--sand);">watch</span> to open one live (uses one preview URL)</span>
     </div>
   </div>
@@ -895,12 +985,13 @@ tenki sandbox ssh --session my-box</div>
   <div class="foot-grid">
     <div class="foot-brand">
       <div class="brand" onclick="showHero()">
-        <div class="brand-mark" aria-hidden="true">
+        <svg class="brand-lx" viewBox="-0.5 -0.5 30 27" width="22" height="20" fill="#FFC547" aria-hidden="true"><path d="M11.566 2.436c1.5-2.405 5.003-2.398 6.493.013l10.677 17.275c1.573 2.546-.258 5.83-3.25 5.83h-7.6c1.487-1.692 1.927-4.271.63-6.485l-.05-.086-5.115-8.402A5.39 5.39 0 0 0 8.1 7.996l3.467-5.56Z"/><path d="M3.748 25.567h8.558c2.928 0 4.722-3.247 3.187-5.769l-4.26-6.997c-1.458-2.396-4.898-2.403-6.366-.013L.57 19.785c-1.548 2.522.245 5.782 3.18 5.782Z"/></svg>
+    <div class="brand-mark" aria-hidden="true">
           <i></i><i></i><i></i><i class="gap"></i><i></i><i class="gap"></i><i class="gap"></i><i class="gap"></i><i></i>
         </div>
-        <span class="brand-name">ixio</span>
+        <span class="brand-name"><span class="b-ixio">ixio</span><span class="b-lx">Luxor</span></span>
       </div>
-      <p class="foot-tag mono">infrastructure, then sand.</p>
+      <p class="foot-tag mono"><span class="b-ixio">infrastructure, then sand.</span><span class="b-lx">The full-stack compute company.</span></p>
     </div>
     <div class="foot-col">
       <h4>Products</h4>
@@ -921,7 +1012,7 @@ tenki sandbox ssh --session my-box</div>
       <a href="#">Talk to sales</a>
     </div>
   </div>
-  <div class="foot-bottom">© 2026 ixio. All rights reserved.</div>
+  <div class="foot-bottom"><span class="b-ixio">© 2026 ixio. All rights reserved.</span><span class="b-lx">© 2026 Luxor</span></div>
 </footer>
 
 <script>

@@ -167,6 +167,27 @@ launching; without that, every free-model opencode launch fails.
 runs that spend the Aisa key. That's why the skill runs on the user's own keys rather
 than pointing at this API.
 
+## Two brands, one page: ixio (sandboxmaxxing.com) and Luxor (luxor.sh)
+
+`index.html` serves both. A `<head>` script sets `data-brand="luxor"` on luxor.sh (or with
+`?brand=luxor`, for previewing on any host) **before first paint**, and every brand difference is
+CSS under `:root[data-brand="luxor"]` plus paired `.b-ixio` / `.b-lx` spans for words. One broker,
+one feature set — never fork the file.
+
+- Fonts and the accent run through variables (`--font`, `--mono`, `--sand`, `--sand-rgb`,
+  `--sand-tint`, `--sand-hi`), so a brand recolours by redefining them. Don't hard-code a colour
+  or font family; use the variable. A regression diff of every computed style showed the ixio
+  brand unchanged by the switch to variables.
+- Luxor's tokens come from agentcamp's luxor theme (`community/web/public/themes.css`) and
+  luxor.tech itself: black, Inter + Geist Mono, `#ffc547` gold for eyebrows, focus and active
+  controls only. **No gold buttons** — every luxor.tech button, the primary included, is white at
+  10% with 8px corners. The mark is Luxor's gold peaks, as luxor.tech publishes it.
+- On luxor.sh, 02 Access leads with **luxor.computer** and says "computer" for "sandbox".
+
+**luxor.sh's other subdomains** (`www.`, `sf.`, `office.luxor.sh`) belong to a different Vercel
+project and were deliberately left alone. luxor.computer is agentcamp's main app
+(`agentcamp-mu`, ~20 brand domains): never redeploy it from here.
+
 ## Rebuild runbook (the thing you will actually need)
 
 The host dies periodically and the session scratchpad is wiped between sessions, so this is
