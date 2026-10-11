@@ -1942,6 +1942,14 @@ function mxRailRender(run) {
     }
   }
   rail.innerHTML = cards.join('') || '<span class="mono" style="font-size:12px;color:#6a6a6a;">no agents yet</span>';
+  // Open on the first live agent rather than an empty stage. Only while nothing is
+  // playing, so a viewer's own pick is never overridden; if no seat is live yet, a
+  // later poll re-renders once one is. Clicking the card takes the same path a
+  // viewer's click does.
+  if (!mx.playing) {
+    const first = rail.querySelector('.mx-side:not([disabled])');
+    if (first) first.click();
+  }
 }
 // Pick a winning team: its code is copied over every other seat, then all teams
 // are told to improve it (with the user's optional feedback).
