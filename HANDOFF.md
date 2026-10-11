@@ -85,23 +85,42 @@ Kimi-K3 TTFB measured **1.5–3.6s** here, far below the 149.9s that once forced
 
 2. **The host keeps dying** — four times now. Once was workspace balance; the others are
    unexplained. Treat rebuild as routine (~3 min, below) and consider automating it.
-3. **Concurrent-job cap is 5** in this workspace (older notes say 100 — that was the previous
-   one). The host permanently holds 1, so in practice only a handful of seats ever fit.
+3. **Capacity: arena seats now run in a dedicated 100-slot workspace** (2026-10-11).
+   The broker reads one key, `TENKI_API_KEY`, and every seat and demo sandbox is created in
+   that key's workspace. That is now separate from the workspace holding the host:
 
-   This interacted badly with the arena's capacity guard and made **every** run impossible.
-   `MAXX_RESERVED_VMS` defaulted to a flat `5`, so the check computed
-   `free = vmMax - vmUsed - 5` = `5 - vmUsed - 5` — zero or negative **even with nothing
-   running**, surfacing as *"needs 1, only 0 available (of 5)"*. Fixed 2026-10-11: the
-   reservation now scales as `min(configured, max(1, floor(max / 4)))`, so a 100-slot workspace
-   still reserves 5 while a 5-slot one reserves 1. `MAX_DEMO_SANDBOXES` also dropped 4 → 2,
-   since 4 demos plus the host would fill the quota by themselves.
+   | `.env` key | Workspace | Slots | Role |
+   |---|---|---|---|
+   | `TENKI_API_KEY` | same as `KEY2` | 100 | **what the broker uses** — arena seats + demo sandboxes, nothing else in it |
+   | `TENKI_API_KEY1` | host workspace | 5 | **use this to deploy** — holds `tenki-redesign-host` and the `sandboxmaxxing--swc27h` sticky URL |
+   | `KEY3`, `KEY4`/`KEY5` | other 100-slot workspaces | 100 | used by the agentcamp golden-builder — don't point the broker here |
 
-   **Capacity can be probed without consuming anything**: POST a deliberately oversized run
-   (`size: 24`) and read `free` / `vmUsed` / `vmMax` off the 503. Nothing is created.
+   Seats living in a different workspace from the host is fine: the broker never manages its own
+   preview URL with its key, its reaper only terminates IDs in its own `state.json` (it never lists
+   the workspace), and seats reach the broker via the public `BROKER_PUBLIC_URL`.
 
-   Even fixed, the ceiling is real — at `vmMax` 5 with the host up, roughly 1–3 seats fit, while
-   the UI still offers 1/4/12/24 agents and 2 teams. Raising the workspace quota is the only way
-   to make the larger options work; failing that the UI should be capped to what `free` reports.
+   To deploy, use the host-workspace key:
+   ```bash
+   TENKI_API_KEY=$(sed -n 's/^TENKI_API_KEY1=//p' broker/.env) tenki sandbox write --session $HOST ...
+   ```
+   Your machine's default `tenki` CLI auth points at yet another workspace, so bare `tenki`
+   commands will silently miss the host.
+
+   **The earlier capacity bug, kept for the record.** `MAXX_RESERVED_VMS` used to default to a flat
+   `5`; in the old 5-slot workspace that made `free = 5 - vmUsed - 5`, i.e. zero even with nothing
+   running (*"needs 1, only 0 available (of 5)"*). The reservation now scales as
+   `min(configured, max(1, floor(max / 4)))` — 5 in a 100-slot workspace, 1 in a 5-slot one.
+
+   **Do not probe capacity by POSTing an oversized run.** That only works when the request cannot
+   fit. The largest request the API accepts is 2 teams × 24 seats = 48, which fits in 100 slots,
+   so the "probe" launches a real arena. (An invalid `size` is not rejected either — it silently
+   falls back to 4.) Read the quota directly instead, via `getUsage()` on the SDK:
+   `max_concurrent_jobs` and `preview_urls_per_workspace` give `current` / `max`.
+
+   **Pasted keys can hide a second key.** One `.env` line arrived as KEY2 + a `U+2028 LINE
+   SEPARATOR` + `TENKI_API_KEY3=…`. The parser does not treat U+2028 as a newline, so KEY2 failed
+   with `Cannot convert argument to a ByteString` and KEY3 appeared to be missing. If a key fails
+   that way, check for non-ASCII characters before assuming it is revoked.
 
 4. **Open product question: BYOC?** Does Tenki plan bring-your-own-cloud (sandboxes in the
    customer's VPC)? This decides the positioning — see `SANDBOX-VS-WORKTREE.md`.
