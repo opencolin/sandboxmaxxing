@@ -86,9 +86,23 @@ Kimi-K3 TTFB measured **1.5–3.6s** here, far below the 149.9s that once forced
 2. **The host keeps dying** — four times now. Once was workspace balance; the others are
    unexplained. Treat rebuild as routine (~3 min, below) and consider automating it.
 3. **Concurrent-job cap is 5** in this workspace (older notes say 100 — that was the previous
-   one). Resuming or minting more than 5 sessions fails with
-   `quota exceeded: max concurrent jobs reached (limit: 5)`, so an arena run of more than ~4 seats
-   will die partway even though the UI offers 24. Verify against the plan before demoing.
+   one). The host permanently holds 1, so in practice only a handful of seats ever fit.
+
+   This interacted badly with the arena's capacity guard and made **every** run impossible.
+   `MAXX_RESERVED_VMS` defaulted to a flat `5`, so the check computed
+   `free = vmMax - vmUsed - 5` = `5 - vmUsed - 5` — zero or negative **even with nothing
+   running**, surfacing as *"needs 1, only 0 available (of 5)"*. Fixed 2026-10-11: the
+   reservation now scales as `min(configured, max(1, floor(max / 4)))`, so a 100-slot workspace
+   still reserves 5 while a 5-slot one reserves 1. `MAX_DEMO_SANDBOXES` also dropped 4 → 2,
+   since 4 demos plus the host would fill the quota by themselves.
+
+   **Capacity can be probed without consuming anything**: POST a deliberately oversized run
+   (`size: 24`) and read `free` / `vmUsed` / `vmMax` off the 503. Nothing is created.
+
+   Even fixed, the ceiling is real — at `vmMax` 5 with the host up, roughly 1–3 seats fit, while
+   the UI still offers 1/4/12/24 agents and 2 teams. Raising the workspace quota is the only way
+   to make the larger options work; failing that the UI should be capped to what `free` reports.
+
 4. **Open product question: BYOC?** Does Tenki plan bring-your-own-cloud (sandboxes in the
    customer's VPC)? This decides the positioning — see `SANDBOX-VS-WORKTREE.md`.
 

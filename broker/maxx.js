@@ -529,8 +529,16 @@ export function createMaxx({ client, tracked, saveState, indexRelay, log, json, 
       if (vm) { vmMax = vm.max ?? vmMax; vmUsed = vm.current ?? 0; }
       if (pv) { previewMax = pv.max ?? previewMax; previewUsed = pv.current ?? 0; }
     } catch {}
-    const VM_RESERVED = Number(process.env.MAXX_RESERVED_VMS || 5);
-    const PV_RESERVED = Number(process.env.MAXX_RESERVED_PREVIEWS || 3);
+    // Headroom so an arena run cannot consume the whole workspace. A FLAT
+    // reservation sized for a 100-slot workspace swallows a small one entirely:
+    // at vmMax 5 the old `|| 5` left free = 5 - used - 5, i.e. zero capacity even
+    // with nothing running, so every run failed with "needs N, only 0 available".
+    // Never reserve more than half the quota.
+    // Scale to a quarter of the quota so a big workspace keeps the full flat
+    // reservation (vmMax 100 -> 5, unchanged) while a small one keeps at most 1.
+    const headroom = (cfg, max) => Math.min(cfg, Math.max(1, Math.floor(max / 4)));
+    const VM_RESERVED = headroom(Number(process.env.MAXX_RESERVED_VMS || 5), vmMax);
+    const PV_RESERVED = headroom(Number(process.env.MAXX_RESERVED_PREVIEWS || 3), previewMax);
     if (totalSeats > vmMax - vmUsed - VM_RESERVED)
       return json(res, 503, { error: "capacity", kind: "vms", need: totalSeats, free: Math.max(0, vmMax - vmUsed - VM_RESERVED), vmMax, vmUsed, note: "one sandbox per agent" });
     if (teamCount > previewMax - previewUsed - PV_RESERVED)
