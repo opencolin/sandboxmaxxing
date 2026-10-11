@@ -19,30 +19,38 @@ mid-run, pick the better build, and every team iterates on it.
 
 ## What works vs. what's dark
 
-**Verified working** (probed 2026-10-11, not just "key present"): the site, the arena UI,
-`/api/maxx`, minting demo sandboxes, theater view, pick-a-winner rounds, writable terminals +
-`/say`, and these providers:
+**Verified working** (probed 2026-10-11 with real requests, not just "key present"): the site,
+the arena UI, `/api/maxx`, minting demo sandboxes, theater view, pick-a-winner rounds, writable
+terminals + `/say`, and **all four providers**:
 
 | Key | Status | Unlocks |
 |---|---|---|
-| `AISA_API_KEY` | ✅ 200 | Default provider. **claude + codex harnesses.** `claude-sonnet-5` via Anthropic `/v1/messages` and `gpt-5.3-codex` via OpenAI `/v1/responses` both round-trip in ~2s |
-| `OPENROUTER_API_KEY` | ✅ 200 | OpenRouter provider + the arena judge |
-| `TINYFISH_API_KEY` | ✅ 200 | Agent web search. Both shapes `seat/websearch-mcp.js` sends are confirmed: `GET tinyfish-search?query=…` and `POST tinyfish-fetch {"urls":[…]}` |
-| `NEBIUS_API_KEY` | ❌ 401 | Nebius/Kimi-K3 provider + opencode Frontier mode — **still broken** |
-
-**Nebius is the one outstanding key.** It returns
-`{"detail":"Couldn't authenticate. Reason: Unable authenticate"}`. The trap: an **IAM token** is
-easily mistaken for a **Token Factory API key** — IAM tokens are long and 401 exactly like this.
-Get the key from Token Factory specifically. Frontier mode and Kimi-K3 stay dark until then.
+| `AISA_API_KEY` | ✅ | Default provider. **claude + codex harnesses.** `claude-sonnet-5` over Anthropic `/v1/messages` and `gpt-5.3-codex` over OpenAI `/v1/responses`, both ~2s |
+| `OPENROUTER_API_KEY` | ✅ | OpenRouter provider + the arena judge |
+| `NEBIUS_API_KEY` | ✅ | Nebius + opencode **Frontier mode**. `moonshotai/Kimi-K3` over `/v1/chat/completions` |
+| `TINYFISH_API_KEY` | ✅ | Agent web search. Both shapes `seat/websearch-mcp.js` sends: `GET tinyfish-search?query=…` and `POST tinyfish-fetch {"urls":[…]}` |
 
 Everything degrades closed — a missing key means the route 404s and the feature is absent, not
 broken. `opencode` on keyless free models needs no key and always works, which is why a
 misconfigured run silently falls back to it instead of erroring.
 
-**Validating keys** — auth alone is not enough, since the broker pins specific model ids
-(`AISA_MODEL_CLAUDE`, `AISA_MODEL_CODEX`, `OPENROUTER_MODEL`). A valid key plus a model the account
-cannot serve fails only at run time, mid-demo. Check `/v1/models` for the pinned ids, then send one
-real request in each wire format the harnesses use.
+### Validating keys — two traps
+
+**1. Auth is not enough.** The broker pins model ids (`AISA_MODEL_CLAUDE`, `AISA_MODEL_CODEX`,
+`MAXX_FRONTIER_MODEL`). A valid key plus a model the account cannot serve passes `/v1/models` and
+then fails only at run time, mid-demo. Check the pinned id is in the catalogue, then send one real
+request in each wire format the harnesses actually use.
+
+**2. Reasoning models return empty content if `max_tokens` is tight.** Kimi-K3 spent **81 tokens
+reasoning** on the prompt "Reply with exactly: NEBIUS_OK". At `max_tokens: 24` the reply came back
+`HTTP 200` with `content: ''` and every token billed to `reasoning_tokens` — indistinguishable from
+a broken provider at a glance. At `max_tokens: 600` the same call returned `NEBIUS_OK` with
+`finish_reason: stop`. If a seat ever reports an empty model response, suspect `max_tokens` before
+the key.
+
+Kimi-K3 TTFB measured **1.5–3.6s** here, far below the 149.9s that once forced
+`RELAY_HEADER_TIMEOUT_MS` to 300s. Keep the generous timeout — the slow case evidently still exists
+— but a 502 is no longer automatically a timeout.
 
 ## Blockers / decisions needed
 
