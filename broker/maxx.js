@@ -84,6 +84,43 @@ export function createMaxx({ client, tracked, saveState, indexRelay, log, json, 
   try { runs = JSON.parse(fs.readFileSync(STATE_FILE, "utf8")); } catch {}
   const save = () => fs.writeFileSync(STATE_FILE, JSON.stringify(runs));
 
+  /* Shipped apps, for the homepage wall. EVERY shipped app is recorded here, but
+   * only entries an operator sets "featured": true are ever shown: visitors write
+   * the prompts and agents build whatever they are asked, so nothing reaches the
+   * homepage without a person choosing it. Feature one by editing gallery.json on
+   * the host (no restart needed). Featured entries are shown only while their URL
+   * still answers, so a dead sandbox never leaves a broken card. */
+  const GALLERY_FILE = path.join(DIR, "gallery.json");
+  const readGallery = () => { try { return JSON.parse(fs.readFileSync(GALLERY_FILE, "utf8")); } catch { return []; } };
+  function recordShipped(r, team, url) {
+    const g = readGallery();
+    const id = `${r.id}-${team.tag}`;
+    if (g.some((e) => e.id === id)) return;
+    g.unshift({
+      id, url, featured: false, shippedAt: new Date().toISOString(),
+      prompt: String(r.prompt || "").slice(0, 240),
+      team: team.tag, agents: team.size, harness: r.harness || "opencode", provider: r.provider || null,
+    });
+    try { fs.writeFileSync(GALLERY_FILE, JSON.stringify(g.slice(0, 200), null, 2)); }
+    catch (e) { log("gallery_write_failed", { message: e.message }); }
+  }
+  const liveCache = new Map();   // url -> { ok, at }
+  async function isLive(url) {
+    const c = liveCache.get(url);
+    if (c && Date.now() - c.at < 5 * 60_000) return c.ok;
+    let ok = false;
+    try { ok = (await fetch(url, { method: "GET", redirect: "follow", signal: AbortSignal.timeout(4000) })).ok; } catch {}
+    liveCache.set(url, { ok, at: Date.now() });
+    return ok;
+  }
+  async function gallery(res) {
+    const featured = readGallery().filter((e) => e.featured === true).slice(0, 24);
+    const live = (await Promise.all(featured.map(async (e) => ((await isLive(e.url)) ? e : null)))).filter(Boolean);
+    return json(res, 200, {
+      apps: live.slice(0, 12).map(({ url, prompt, team, agents, harness, shippedAt }) => ({ url, prompt, team, agents, harness, shippedAt })),
+    });
+  }
+
   const loadTemplate = (name) => {
     const safe = String(name || "").replace(/[^a-z0-9-]/gi, "");
     if (!safe) return null;
@@ -797,6 +834,7 @@ export function createMaxx({ client, tracked, saveState, indexRelay, log, json, 
             .catch((e) => log("maxx_keep_failed", { id: sessionId, message: e.message }));
           save();
           log("maxx_published", { runId: r.id, team: team.tag, url, kept: true });
+          recordShipped(r, team, url);
           if (r.compete) judge(r, false).catch(() => {});
           return;
         }
@@ -804,5 +842,5 @@ export function createMaxx({ client, tracked, saveState, indexRelay, log, json, 
     }
   }
 
-  return { start, get, stop, templates, watch, say, pick, notifyExpose, sweep };
+  return { start, get, stop, templates, watch, say, pick, notifyExpose, sweep, gallery };
 }

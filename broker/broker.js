@@ -905,6 +905,7 @@ http.createServer(async (req, res) => {
       if (req.method === "POST" && seg.length === 4 && seg[3] === "code") return await openCode(req, res, seg[2]);
       return json(res, 404, { error: "not_found" });
     }
+    if (seg[0] === "api" && seg[1] === "gallery" && seg.length === 2 && req.method === "GET") return await maxx.gallery(res);
     if (seg[0] === "api" && seg[1] === "maxx") {
       if (req.method === "POST" && seg.length === 2) return await maxx.start(req, res);
       if (req.method === "GET" && seg.length === 2) return maxx.templates(res);

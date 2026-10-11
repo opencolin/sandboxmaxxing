@@ -121,7 +121,8 @@
       grid-template-columns: minmax(0, 1fr) minmax(420px, 1.6fr) minmax(max-content, 1fr);
       grid-template-areas:
         "title canvas tag"
-        "ctas  canvas tag";
+        "ctas  canvas tag"
+        "news  canvas tag";
       align-items: center;
       column-gap: 44px;
       width: min(1440px, 90vw);
@@ -138,6 +139,7 @@
       text-shadow: none;
     }
     .hero-ctas { grid-area: ctas; align-self: start; justify-self: start; justify-content: flex-start; }
+    .hero-news { grid-area: news; align-self: start; justify-self: start; }
     .tagline {
       grid-area: tag; justify-self: start;
       height: auto; margin-bottom: 0;
@@ -160,6 +162,71 @@
   .cell h3 { font-size: 15px; font-weight: 600; margin-bottom: 6px; display: flex; align-items: center; gap: 8px; }
   .cell h3 .dot { width: 7px; height: 7px; border-radius: 2px; background: var(--sand); display: inline-block; }
   .cell p { font-size: 13.5px; color: var(--muted); line-height: 1.55; }
+  /* ---- homepage sections below the hero ---- */
+  .home-eyebrow { font-family: "SF Mono", monospace; font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: #6a6a6a; }
+  .hero-news { display: inline-flex; align-items: center; gap: 10px; margin-top: 18px; padding: 5px 14px 5px 5px; border: 1px solid var(--line);
+    border-radius: 999px; background: #0a0a0a; color: #cfcfcf; font: inherit; font-size: 13px; cursor: pointer; transition: border-color .15s, color .15s; }
+  .hero-news:hover, .hero-news:focus-visible { border-color: #444; color: var(--fg); outline: none; }
+  .hero-news-tag { background: rgba(217,201,163,.14); color: var(--sand); border: 1px solid rgba(217,201,163,.35); border-radius: 999px; padding: 2px 9px; font-size: 11.5px; font-weight: 500; }
+  .hero-news-arrow { color: #7a7a7a; }
+  .home-agents { margin-top: 64px; display: flex; flex-direction: column; align-items: center; gap: 16px; }
+  .home-agents-row { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px 30px; }
+  .home-agent { display: inline-flex; align-items: center; gap: 9px; color: #cfcfcf; font-size: 14.5px; }
+  .home-agent svg { width: 20px; height: 20px; display: block; flex: none; }
+  .home-flow { margin-top: 72px; width: min(1100px, 92vw); display: grid; grid-template-columns: minmax(0, .9fr) minmax(0, 1.25fr); gap: 40px;
+    align-items: center; text-align: left; border: 1px solid var(--line); border-radius: 20px; background: #070707; padding: 40px; }
+  .home-flow h2 { font-size: clamp(25px, 2.5vw, 33px); line-height: 1.15; letter-spacing: -.02em; margin: 10px 0 22px; }
+  .home-steps { list-style: none; padding: 0; margin: 0 0 26px; display: flex; flex-direction: column; gap: 2px; }
+  .home-step { width: 100%; text-align: left; background: none; border: 0; border-left: 2px solid var(--line); padding: 9px 0 9px 16px;
+    cursor: pointer; font: inherit; color: var(--muted); transition: border-color .25s, color .25s; }
+  .home-step:hover, .home-step:focus-visible { color: #d6d6d6; outline: none; }
+  .home-step-name { display: block; font-size: 17px; font-weight: 500; }
+  .home-step-desc { display: block; font-size: 14px; line-height: 1.55; color: #9a9a9a; max-height: 0; overflow: hidden; opacity: 0;
+    transition: max-height .35s ease, opacity .3s ease, margin-top .3s ease; }
+  .home-step[aria-current="step"] { border-left-color: var(--sand); color: var(--fg); }
+  .home-step[aria-current="step"] .home-step-desc { max-height: 110px; opacity: 1; margin-top: 6px; }
+  .home-arena { display: grid; grid-template-columns: minmax(0, 1fr) 196px; gap: 12px; align-items: start; }
+  .home-arena-body { height: 296px; padding: 14px 16px; font-family: "SF Mono", monospace; font-size: 12px; line-height: 1.75; color: #cfcfcf; overflow: hidden; }
+  .home-arena-rail { display: flex; flex-direction: column; gap: 6px; }
+  .home-arena-rail .mx-side { cursor: default; padding: 6px; }
+  .home-arena-rail .mx-side:hover { background: none; border-color: transparent; }
+  .home-arena-rail .mx-side.on { background: #14120c; border-color: rgba(217,201,163,.5); }
+  .home-arena-rail .mx-side-thumb { width: 60px; height: 40px; }
+  .home-arena-rail .mx-side-role, .home-arena-rail .mx-side-model { display: block; }
+  .ha-line { white-space: pre-wrap; animation: haIn .25s ease both; }
+  .ha-dim { color: #6a6a6a; } .ha-ok { color: #3ecf6a; } .ha-sand { color: var(--sand); } .ha-agent { color: #d97757; }
+  .ha-caret { display: inline-block; width: 7px; height: 13px; background: #cfcfcf; vertical-align: -2px; margin-left: 2px; animation: haBlink 1s steps(1) infinite; }
+  .ha-builds { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px; }
+  .ha-build { border: 1px solid #232323; border-radius: 9px; padding: 10px; height: 92px; display: flex; flex-direction: column; justify-content: space-between; }
+  .ha-build.win { border-color: rgba(217,201,163,.55); background: #14120c; }
+  .ha-build b { font-family: Inter, system-ui, sans-serif; font-size: 12.5px; font-weight: 500; color: #e6e6e6; }
+  .ha-pick { display: inline-block; border: 1px solid #333; border-radius: 999px; padding: 3px 11px; font-size: 11px; color: #9a9a9a; margin-right: 6px; }
+  .ha-pick.win { border-color: var(--sand); color: var(--sand); }
+  .ha-url { border: 1px solid #232323; border-radius: 9px; padding: 11px 12px; display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+  .ha-url-text { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ha-badge { flex: none; margin-left: auto; color: var(--sand); border: 1px solid rgba(217,201,163,.4); border-radius: 999px; padding: 1px 9px; font-size: 10.5px; }
+  @keyframes haIn { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: none; } }
+  @keyframes haBlink { 50% { opacity: 0; } }
+  .home-shipped { margin-top: 84px; width: min(1100px, 92vw); text-align: left; }
+  .home-shipped h2 { font-size: clamp(25px, 2.5vw, 33px); letter-spacing: -.02em; margin-top: 10px; }
+  .home-shipped-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; margin-top: 22px; }
+  .home-app { border: 1px solid var(--line); border-radius: 14px; overflow: hidden; background: #0a0a0a; display: flex; flex-direction: column;
+    color: inherit; text-decoration: none; transition: border-color .15s; }
+  .home-app:hover { border-color: #444; }
+  .home-app-frame { height: 190px; overflow: hidden; background: #000; position: relative; }
+  .home-app-frame iframe { width: 400%; height: 400%; border: 0; transform: scale(.25); transform-origin: 0 0; pointer-events: none; }
+  .home-app-meta { padding: 12px 14px 14px; }
+  .home-app-prompt { font-size: 13.5px; color: #d6d6d6; line-height: 1.45; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .home-app-sub { font-family: "SF Mono", monospace; font-size: 10.5px; color: #7a7a7a; margin-top: 6px; }
+  @media (max-width: 1080px) { .home-flow { grid-template-columns: 1fr; gap: 30px; } }
+  @media (max-width: 900px) {
+    .home-flow { grid-template-columns: 1fr; padding: 26px 20px; gap: 26px; }
+    .home-arena { grid-template-columns: 1fr; }
+    .home-arena-rail { flex-direction: row; overflow-x: auto; }
+    .home-arena-rail .mx-side { width: 190px; flex: none; }
+    .home-arena-body { height: 260px; }
+  }
+  @media (prefers-reduced-motion: reduce) { .ha-line, .home-step-desc { animation: none; transition: none; } .ha-caret { animation: none; } }
   @media (max-width: 720px) { .hero-products { grid-template-columns: 1fr; } }
 
   /* ---------- Deploy view ---------- */
@@ -528,7 +595,35 @@
     <button class="btn btn-primary" onclick="showDeploy()">Deploy now</button>
     <button class="btn btn-ghost">Talk to sales</button>
   </div>
+  <button type="button" class="hero-news" onclick="goToCode()">
+    <span class="hero-news-tag">New</span><span>VS Code in every sandbox</span><span class="hero-news-arrow" aria-hidden="true">→</span>
+  </button>
   </div><!-- /hero-top -->
+  <section class="home-agents" aria-label="Coding agents that run in a sandbox">
+    <div class="home-eyebrow">Works with the coding agents you already use</div>
+    <div class="home-agents-row" id="homeAgents"></div>
+  </section>
+  <section class="home-flow" aria-labelledby="homeFlowTitle">
+    <div class="home-flow-copy">
+      <div class="home-eyebrow">Sandboxmaxxing</div>
+      <h2 id="homeFlowTitle">One prompt. A team of agents. The best build ships.</h2>
+      <ol class="home-steps" id="homeSteps">
+        <li><button type="button" class="home-step" data-step="0" aria-current="step"><span class="home-step-name">Prompt</span><span class="home-step-desc">Describe what to build. The same brief goes to every agent.</span></button></li>
+        <li><button type="button" class="home-step" data-step="1"><span class="home-step-name">Build</span><span class="home-step-desc">Each agent gets its own disposable sandbox, running Claude Code, Codex or OpenCode on the provider you choose.</span></button></li>
+        <li><button type="button" class="home-step" data-step="2"><span class="home-step-name">Watch</span><span class="home-step-desc">Every agent works in a live terminal you can watch — and type into.</span></button></li>
+        <li><button type="button" class="home-step" data-step="3"><span class="home-step-name">Pick</span><span class="home-step-desc">A judge names the strongest build and says why. Pick a winner and every team improves on it.</span></button></li>
+        <li><button type="button" class="home-step" data-step="4"><span class="home-step-name">Ship</span><span class="home-step-desc">The build goes live at its own URL. The sandboxes that made it turn to sand.</span></button></li>
+      </ol>
+      <button class="btn btn-primary" onclick="showDeploy()">Start an arena →</button>
+    </div>
+    <div class="home-arena" id="homeArena" aria-hidden="true">
+      <div class="mx-stage home-arena-stage">
+        <div class="mx-stage-bar"><span class="mx-dot" id="haDot"></span><span class="mx-stage-title" id="haTitle"></span><span class="mx-stage-sub" id="haSub"></span></div>
+        <div class="home-arena-body" id="haBody"></div>
+      </div>
+      <div class="home-arena-rail" id="haRail"></div>
+    </div>
+  </section>
 
   <div class="hero-products">
     <div class="cell">
@@ -544,6 +639,11 @@
       <p>CI runners that materialize for your workflow and vanish the moment the job is green.</p>
     </div>
   </div>
+  <section class="home-shipped" id="homeShipped" hidden>
+    <div class="home-eyebrow">Shipped from an arena</div>
+    <h2>Built by agents. Still live.</h2>
+    <div class="home-shipped-grid" id="homeShippedGrid"></div>
+  </section>
 </main>
 
 <!-- ============ DEPLOY ============ -->
@@ -1354,6 +1454,175 @@ async function openTerminal(agent, el, prompt) {
 }
 window.addEventListener('scroll', () =>
   document.getElementById('nav').classList.toggle('scrolled', scrollY > 8));
+
+/* ================= homepage ================= */
+// "New" pill: straight to the VS Code card in 02 Access.
+function goToCode() {
+  showDeploy();
+  setTimeout(() => {
+    const card = document.getElementById('openCodeBtn')?.closest('.access-card');
+    if (card) card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, 80);
+}
+// Agents row: read from the Build picker, so it lists exactly what the product runs.
+(() => {
+  const row = document.getElementById('homeAgents');
+  if (!row) return;
+  const NAMES = { claude: 'Claude Code', codex: 'Codex', opencode: 'OpenCode' };
+  document.querySelectorAll('#agentMenu [data-agent]').forEach(o => {
+    const a = o.dataset.agent, el = document.createElement('span');
+    el.className = 'home-agent';
+    const icon = o.querySelector('svg');
+    if (icon) el.appendChild(icon.cloneNode(true));
+    el.appendChild(document.createTextNode(NAMES[a] || a.charAt(0).toUpperCase() + a.slice(1)));
+    row.appendChild(el);
+  });
+})();
+/* Lifecycle + arena. An illustration of the real theater view, drawn with the
+   same .mx-* styles, showing only what the product does: one harness for the
+   whole run, the judge's "WINNER: X" verdict, tenki-publish, the relay token.
+   Advances on its own; pauses while hovered or focused; reduced motion gets
+   each step's finished frame and no auto-advance. */
+const HA = {
+  step: 0, timer: null, held: false, gen: 0,
+  brief: 'Build a habit tracker with streaks and a weekly chart.',
+  seats: [['A', 'architect'], ['A', 'engineer'], ['B', 'architect'], ['B', 'engineer']],
+};
+function haRail(states, on) {
+  const label = { pending: 'queued', running: 'running', published: 'shipped', stopped: 'stopped' };
+  document.getElementById('haRail').innerHTML = HA.seats.map(([t, role], i) => {
+    const st = states[i];
+    return `<div class="mx-side${on === i ? ' on' : ''}"><span class="mx-side-thumb"><code>${role}<br>$ ${st === 'running' ? 'working…' : label[st]}</code></span>
+      <span class="mx-side-meta"><span class="mx-side-role">${role}</span><span class="mx-side-model">claude-sonnet-5</span>
+      <span class="mx-side-state"><span class="mx-dot ${st === 'stopped' ? '' : st}" style="width:6px;height:6px;"></span>${label[st]} · <span class="mx-side-team">TEAM ${t}</span></span></span></div>`;
+  }).join('');
+}
+function haBar(dot, title, sub) {
+  document.getElementById('haDot').className = 'mx-dot ' + dot;
+  document.getElementById('haTitle').textContent = title;
+  document.getElementById('haSub').textContent = sub;
+}
+// Stream lines into the stage; a newer step cancels an older stream (gen).
+function haStream(lines, gap) {
+  const body = document.getElementById('haBody'), gen = HA.gen;
+  body.innerHTML = '';
+  lines.forEach((html, i) => {
+    const add = () => { if (gen !== HA.gen) return; const d = document.createElement('div'); d.className = 'ha-line'; d.innerHTML = html; body.appendChild(d); };
+    reduceMotion ? add() : setTimeout(add, i * gap);
+  });
+}
+const HA_STEPS = [
+  () => {   // Prompt
+    haBar('pending', 'new arena', '2 teams × 2 agents · claude');
+    haRail(['pending', 'pending', 'pending', 'pending']);
+    const body = document.getElementById('haBody'), gen = HA.gen;
+    body.innerHTML = '<div class="ha-line"><span class="ha-dim">brief ›</span> <span id="haType"></span><span class="ha-caret"></span></div>';
+    const out = document.getElementById('haType');
+    if (reduceMotion) { out.textContent = HA.brief; return; }
+    [...HA.brief].forEach((ch, i) => setTimeout(() => { if (gen === HA.gen) out.textContent += ch; }, 300 + i * 34));
+  },
+  () => {   // Build
+    haBar('pending', 'spinning up', '4 sandboxes');
+    haRail(['pending', 'pending', 'pending', 'pending']);
+    haStream([
+      '<span class="ha-ok">✓</span> team A · architect  <span class="ha-dim">sandbox ready</span>',
+      '<span class="ha-ok">✓</span> team A · engineer   <span class="ha-dim">sandbox ready</span>',
+      '<span class="ha-ok">✓</span> team B · architect  <span class="ha-dim">sandbox ready</span>',
+      '<span class="ha-ok">✓</span> team B · engineer   <span class="ha-dim">sandbox ready</span>',
+      '<span class="ha-dim">→ claude-sonnet-5 through the relay: no API key in any sandbox</span>',
+    ], 420);
+    const gen = HA.gen;
+    [0, 1, 2, 3].forEach(i => setTimeout(() => {
+      if (gen !== HA.gen) return;
+      haRail(HA.seats.map((_, j) => (j <= i ? 'running' : 'pending')));
+    }, reduceMotion ? 0 : 420 * (i + 1)));
+  },
+  () => {   // Watch
+    haBar('running', 'architect', 'TEAM A · live');
+    haRail(['running', 'running', 'running', 'running'], 0);
+    haStream([
+      '<span class="ha-agent">●</span> Reading the brief — one page, no backend',
+      '<span class="ha-agent">●</span> Write <span class="ha-sand">index.html</span>',
+      '<span class="ha-agent">●</span> Write <span class="ha-sand">app.js</span> — streaks, weekly chart',
+      '<span class="ha-agent">●</span> Run the tests',
+      '  <span class="ha-ok">✓ 6 passed</span>',
+      '<span class="ha-agent">●</span> <span class="ha-dim">$</span> tenki-publish 3000',
+    ], 520);
+  },
+  () => {   // Pick
+    haBar('running', 'judge', 'both teams shipped');
+    haRail(['running', 'running', 'running', 'running']);
+    const body = document.getElementById('haBody');
+    body.innerHTML =
+      '<div class="ha-builds"><div class="ha-build win"><b>Team A</b><span class="ha-dim">live preview ↗</span></div>' +
+      '<div class="ha-build"><b>Team B</b><span class="ha-dim">live preview ↗</span></div></div>' +
+      '<div class="ha-line"><span class="ha-sand">WINNER: A</span></div>' +
+      '<div class="ha-line ha-dim">Streaks survive a reload and the weekly chart renders; B\'s chart is empty.</div>' +
+      '<div class="ha-line" style="margin-top:12px"><span class="ha-pick win">Pick Team A</span><span class="ha-pick">Pick Team B</span></div>';
+  },
+  () => {   // Ship
+    haBar('published', 'shipped', 'TEAM A');
+    haRail(['published', 'stopped', 'stopped', 'stopped'], 0);
+    document.getElementById('haBody').innerHTML =
+      '<div class="ha-url"><span class="ha-url-text"><span class="ha-dim">https://</span>k3f9w2…sb.tenki.sh</span><span class="ha-badge">live</span></div>' +
+      '<div class="ha-line"><span class="ha-ok">✓</span> the shipped app is kept</div>' +
+      '<div class="ha-line ha-dim">→ the other three sandboxes turn to sand</div>';
+  },
+];
+function haGo(i) {
+  HA.step = i; HA.gen++;
+  document.querySelectorAll('#homeSteps .home-step').forEach((b, j) => {
+    if (j === i) b.setAttribute('aria-current', 'step'); else b.removeAttribute('aria-current');
+  });
+  HA_STEPS[i]();
+}
+function haRestart() {
+  clearInterval(HA.timer);
+  if (reduceMotion) return;
+  HA.timer = setInterval(() => {
+    const onHome = document.getElementById('view-hero').style.display !== 'none';
+    if (!HA.held && !document.hidden && onHome) haGo((HA.step + 1) % HA_STEPS.length);
+  }, 5200);
+}
+(() => {
+  const flow = document.querySelector('.home-flow');
+  if (!flow) return;
+  document.querySelectorAll('#homeSteps .home-step').forEach(b =>
+    b.addEventListener('click', () => { haGo(Number(b.dataset.step)); haRestart(); }));
+  flow.addEventListener('mouseenter', () => { HA.held = true; });
+  flow.addEventListener('mouseleave', () => { HA.held = false; });
+  flow.addEventListener('focusin', () => { HA.held = true; });
+  flow.addEventListener('focusout', e => { if (!flow.contains(e.relatedTarget)) HA.held = false; });
+  haGo(0);
+  haRestart();
+})();
+// Shipped wall: only apps an operator featured, and only while they still answer
+// (the broker filters both). Hidden when there are none. Agent-built pages, so
+// they render in a sandboxed iframe with no same-origin access.
+(async () => {
+  try {
+    const r = await fetch('/api/gallery');
+    if (!r.ok) return;
+    const { apps } = await r.json();
+    if (!apps || !apps.length) return;
+    const grid = document.getElementById('homeShippedGrid');
+    for (const a of apps) {
+      const card = document.createElement('a');
+      card.className = 'home-app'; card.href = a.url; card.target = '_blank'; card.rel = 'noopener';
+      const frame = document.createElement('div'); frame.className = 'home-app-frame';
+      const f = document.createElement('iframe');
+      f.src = a.url; f.loading = 'lazy'; f.tabIndex = -1; f.title = 'Preview: ' + (a.prompt || 'shipped app');
+      f.setAttribute('sandbox', 'allow-scripts');
+      frame.appendChild(f);
+      const meta = document.createElement('div'); meta.className = 'home-app-meta';
+      const p = document.createElement('div'); p.className = 'home-app-prompt'; p.textContent = a.prompt || '';
+      const sub = document.createElement('div'); sub.className = 'home-app-sub';
+      sub.textContent = `Team ${a.team} · ${a.agents} agent${a.agents === 1 ? '' : 's'} · ${a.harness}`;
+      meta.append(p, sub); card.append(frame, meta); grid.appendChild(card);
+    }
+    document.getElementById('homeShipped').hidden = false;
+  } catch {}
+})();
 
 /* ================= rotating tagline ================= */
 const tags = document.querySelectorAll('.tagline span');
