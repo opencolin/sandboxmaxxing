@@ -68,7 +68,7 @@ const DEFAULT_DEADLINE_MS = 30 * 60_000;
 const SEAT_STAGGER_MS = 1500;
 const JUDGE_MAX_WAIT_MS = 20 * 60_000;   // judge on whatever shipped by here
 
-export function createMaxx({ client, tracked, saveState, indexRelay, log, json, readJson, terminateSession, brokerUrl }) {
+export function createMaxx({ client, tracked, saveState, indexRelay, log, json, readJson, terminateSession, brokerUrl, opencodeUpgrade = "" }) {
   const DIR = path.dirname(new URL(import.meta.url).pathname);
   // Web search/fetch for seats, via the broker relay (TinyFish free tier). The
   // shim ships into the seat; the real key never leaves the broker. Feature is
@@ -292,7 +292,8 @@ export function createMaxx({ client, tracked, saveState, indexRelay, log, json, 
       const cfg = opencodeConfig({ frontier, relayToken: entry.relayToken, gortex: !!run.repoUrl, web: webEnabled() });
       const cfgB64 = Buffer.from(JSON.stringify(cfg, null, 2)).toString("base64");
       cfgWrite = [`echo ${cfgB64} | base64 -d > /home/tenki/work/opencode.json`];
-      agentCmd = `exec opencode --auto --model ${model} --prompt "$(cat /tmp/prompt.txt)"`;
+      // Upgrade first: the free tier refuses opencode < 1.18 (see broker.js).
+      agentCmd = `${opencodeUpgrade}\nexec opencode --auto --model ${model} --prompt "$(cat /tmp/prompt.txt)"`;
     } else {
       const upstream = relayUpstream(harness, run.provider);
       const usingAisa = harnessProvider(harness, run.provider) === "aisa";

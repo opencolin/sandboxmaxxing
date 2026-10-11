@@ -45,6 +45,15 @@ const AGENTS = new Set(["claude", "codex", "opencode"]);
 // Verified working unauthenticated: big-pickle, deepseek-v4-flash-free,
 // hy3-free, mimo-v2.5-free, nemotron-3-ultra-free (north-mini-code-free errors).
 const OPENCODE_MODEL = process.env.OPENCODE_MODEL || "opencode/nemotron-3-ultra-free";
+// opencode's free tier refuses clients older than 1.18.0 ("OpenCode 1.18.0 or newer is
+// required to use the free tier"), and the stock image ships 1.17.20 (2026-10-11). So
+// every opencode launch upgrades in place first — only when below 1.18 (sort -V puts
+// the smaller version first), ~14s once per sandbox. Shared with maxx's seats.
+const OPENCODE_UPGRADE =
+  `v="$(opencode --version 2>/dev/null | tail -1)"; ` +
+  `if [ "$(printf '%s\\n1.18.0\\n' "$v" | sort -V | head -1)" != "1.18.0" ]; then ` +
+  `echo "updating opencode (the free tier needs 1.18+)…"; ` +
+  `sudo -n npm install -g --prefix /usr/local opencode-ai@latest >/tmp/opencode-upgrade.log 2>&1 || true; fi`;
 // claude and codex have no free tier of their own, so they run through
 // kimi-relay (which translates their native wire formats) pointed at this
 // broker's relay. LLM_PROVIDER picks what the relay forwards to: "openrouter"
@@ -489,7 +498,7 @@ async function openTerminal(req, res, id) {
         'command -v kimirelay >/dev/null 2>&1 || { echo "installing kimi-relay…"; curl -fsSL https://kimirelay.com/install.sh | sh >/tmp/kimirelay-install.log 2>&1 || echo "kimi-relay install failed — see /tmp/kimirelay-install.log"; }',
         `exec kimirelay ${argv}`,
       ].join("\n");
-    } else launch = [...tenkiEnv, `exec ${argv}`].join("\n");
+    } else launch = [...tenkiEnv, ...(agent === "opencode" ? [OPENCODE_UPGRADE] : []), `exec ${argv}`].join("\n");
     const scriptB64 = Buffer.from(`#!/bin/bash\n${launch}\n`).toString("base64");
     const promptB64 = Buffer.from(prompt).toString("base64");
     const guideB64 = Buffer.from(DEPLOY_GUIDE).toString("base64");
@@ -889,7 +898,7 @@ function serveStatic(req, res) {
 // them), and answer over the same HTTP server.
 const maxx = createMaxx({
   client, tracked, saveState, indexRelay, log, json, readJson, terminateSession,
-  brokerUrl: BROKER_PUBLIC_URL,
+  brokerUrl: BROKER_PUBLIC_URL, opencodeUpgrade: OPENCODE_UPGRADE,
 });
 
 http.createServer(async (req, res) => {
