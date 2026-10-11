@@ -1,6 +1,6 @@
 /* Sandboxmaxxing — configurable agent teams building one prompt in parallel
  * sandboxes. Supports two rival teams with a judge, Free (keyless opencode
- * native models) or Frontier (opencode → the broker's relay → Kimi K3, keys
+ * native models) or Frontier (opencode → the broker's relay → Qwen3.8-27B, keys
  * server-side), and an optional starting repo (gortex-indexed per seat).
  *
  * Seats run HEADLESS — no per-seat preview URL — so a full 24-agent run costs
@@ -22,10 +22,10 @@ const NATIVE_FREE = [
   "opencode/hy3-free",
 ];
 // Frontier mode routes opencode through the broker relay to a hosted model.
-// nebius/Kimi-K3 is genuinely stronger than the free tier; the seat sends its
+// nebius/Qwen3.8-27B is genuinely stronger than the free tier; the seat sends its
 // per-session relayToken as the bearer, so the real key never enters the VM.
 const FRONTIER_PROVIDER = process.env.MAXX_FRONTIER_PROVIDER || "nebius";
-const FRONTIER_MODEL = process.env.MAXX_FRONTIER_MODEL || "moonshotai/Kimi-K3";
+const FRONTIER_MODEL = process.env.MAXX_FRONTIER_MODEL || "Qwen/Qwen3.8-27B";
 // $0 judge: a strong OpenRouter free model scores the two builds.
 const JUDGE_MODEL = process.env.MAXX_JUDGE_MODEL || "nvidia/nemotron-3-ultra-550b-a55b:free";
 
@@ -245,7 +245,7 @@ export function createMaxx({ client, tracked, saveState, indexRelay, log, json, 
 
     // Per-harness launch command (written verbatim into /tmp/agent-cmd.sh via a
     // QUOTED heredoc, so $(cat /tmp/prompt.txt) expands at agent runtime, not now).
-    //  • opencode — keyless free models (or relay-Kimi frontier) via opencode.json.
+    //  • opencode — keyless free models (or relay Frontier model) via opencode.json.
     //  • claude/codex — no free tier, so run under the kimirelay wrapper pointed at
     //    the broker relay (OpenRouter for claude, Nebius for codex). Only the
     //    per-session relayToken enters the VM; the real key stays on the broker.

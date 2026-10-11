@@ -27,12 +27,21 @@ terminals + `/say`, and **all four providers**:
 |---|---|---|
 | `AISA_API_KEY` | ✅ | Default provider. **claude + codex harnesses.** `claude-sonnet-5` over Anthropic `/v1/messages` and `gpt-5.3-codex` over OpenAI `/v1/responses`, both ~2s |
 | `OPENROUTER_API_KEY` | ✅ | OpenRouter provider + the arena judge |
-| `NEBIUS_API_KEY` | ✅ | Nebius + opencode **Frontier mode**. `moonshotai/Kimi-K3` over `/v1/chat/completions` |
+| `NEBIUS_API_KEY` | ✅ | Nebius + opencode **Frontier mode**. `Qwen/Qwen3.8-27B` over `/v1/chat/completions` |
 | `TINYFISH_API_KEY` | ✅ | Agent web search. Both shapes `seat/websearch-mcp.js` sends: `GET tinyfish-search?query=…` and `POST tinyfish-fetch {"urls":[…]}` |
 
 Everything degrades closed — a missing key means the route 404s and the feature is absent, not
 broken. `opencode` on keyless free models needs no key and always works, which is why a
 misconfigured run silently falls back to it instead of erroring.
+
+**Frontier model is `Qwen/Qwen3.8-27B`** (switched from `moonshotai/Kimi-K3` on 2026-10-11), set by
+`FRONTIER_MODEL` in `broker/maxx.js` and overridable with `MAXX_FRONTIER_MODEL`. Note the `Qwen/`
+org prefix — the bare `Qwen3.8-27B` is not a valid id. Measured TTFB 0.7s, well under Kimi-K3's.
+
+That constant is the **only** place the project names a concrete model for the relay. The legacy
+single-sandbox "Kimi K3" toggle on the deploy page is a different path: it routes claude/codex
+through **kimirelay**, which picks its own model, so it still uses Kimi K3 and its label is correct.
+Changing that one means configuring kimirelay, not editing this repo.
 
 ### Validating keys — two traps
 
