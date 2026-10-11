@@ -189,6 +189,11 @@ one feature set — never fork the file.
   controls only. **No gold buttons** — every luxor.tech button, the primary included, is white at
   10% with 8px corners. The mark is Luxor's gold peaks, as luxor.tech publishes it.
 - On luxor.sh, 02 Access leads with **luxor.computer** and says "computer" for "sandbox".
+- The hero animation is the one place the brands take different layouts (`sand logo animation`
+  in `index.html`): ixio keeps its 5×4 grid, whose white boxes are its mark; Luxor gets a
+  six-row pyramid of boxes wired to their neighbours, split into the mark's two peaks (no wire
+  crosses the seam), and the gold mark itself pulses after the sand. Both run the same
+  appear → cube → sand cycle from one `NODES` list, and the sand takes the brand's `--sand-rgb`.
 
 **luxor.sh is attached to the same Vercel project as sandboxmaxxing.com** (`sandboxmaxxing`,
 `prj_040XXuVRiTDS4BhgZ96ZDYbarAPx`), live since 2026-10-11. That project holds only the

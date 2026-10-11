@@ -1836,21 +1836,24 @@ setInterval(() => {
 }, 2800);
 
 /* ================= sand logo animation =================
-   5 boxes appear one by one, then dissolve into sand one by one. */
+   Boxes appear one by one, cube up and spin, then dissolve into sand one by one, and
+   the brand's mark pulses where they stood. ixio: a 5×4 grid whose white boxes are its
+   mark. Luxor: a pyramid of boxes wired to their neighbours, laid out as the two peaks
+   of Luxor's mark, which then appears in their place. */
 const canvas = document.getElementById('logoCanvas');
 const ctx = canvas.getContext('2d');
 const DPR = Math.min(window.devicePixelRatio || 1, 2);
 const W = 640, H = 380;
 canvas.width = W * DPR; canvas.height = H * DPR;
 ctx.scale(DPR, DPR);
+const LUXOR = document.documentElement.getAttribute('data-brand') === 'luxor';
+// the brand's sand: ixio's cream, Luxor's gold
+const SAND_RGB = (() => {
+  const v = getComputedStyle(document.documentElement).getPropertyValue('--sand-rgb').split(',').map(Number);
+  return v.length === 3 && v.every(n => n >= 0) ? v : [217, 201, 163];
+})();
 
-const N = 5, ROWS = 4, BOX = 42, GAP = 16;
-const rowW = N * BOX + (N - 1) * GAP;
-const gridH = ROWS * BOX + (ROWS - 1) * GAP;
-const x0 = (W - rowW) / 2, y0 = 62;
-const gridBottom = y0 + gridH;
-
-/* staggering runs as a diagonal wave: wave index w = row + col (0..8) */
+/* each box waits for its wave: wa orders appearing and cubing up, wd orders dissolving */
 const T = {
   appearWave: 130, appearDur: 420,
   preMorph: 450, morphDur: 650, morphWave: 70,
@@ -1859,21 +1862,14 @@ const T = {
   logoDur: 3400,
   endPause: 900,
 };
-const MAXW = (N - 1) + (ROWS - 1);
-const allAppeared = MAXW * T.appearWave + T.appearDur;
-const mStart = w => allAppeared + T.preMorph + w * T.morphWave;
-const lastMorphEnd = mStart(MAXW) + T.morphDur;
-const dStart = w => lastMorphEnd + T.spinHold + w * T.dissolveWave;
-const logoStart = dStart(MAXW) + T.dissolveDur;
-const loopLen = logoStart + T.logoDur + T.endPause;
 const SPIN = 0.0016;            // rad / ms
 const TILT = -0.42;             // resting X tilt once cubed
 
 let particles = [];
 let lastT = 0, lastFrame = performance.now(), start = performance.now();
-const spawnAcc = new Array(N * ROWS).fill(0);
 
 function easeOut(p) { return 1 - Math.pow(1 - p, 3); }
+function clamp01(p) { return p < 0 ? 0 : p > 1 ? 1 : p; }
 
 /* icons shown inside the squares (2D phases only).
    Brand paths from simple-icons (CC0), 24x24 viewBox. */
@@ -1959,6 +1955,115 @@ function drawIcon(kind, cx, cy, s, onDark) {
   ctx.restore();
 }
 
+/* ---- layout: the boxes (NODES) and, for Luxor, the wires between them (EDGES) ---- */
+let BOX, layoutW, layoutBottom;
+const NODES = [], EDGES = [];
+if (!LUXOR) {
+  // a 5×4 grid; staggering runs as a diagonal wave (row + col) both ways
+  const N = 5, ROWS = 4, GAP = 16, y0 = 62;
+  BOX = 42;
+  layoutW = N * BOX + (N - 1) * GAP;
+  layoutBottom = y0 + ROWS * BOX + (ROWS - 1) * GAP;
+  const x0 = (W - layoutW) / 2;
+  for (let r = 0; r < ROWS; r++) for (let c = 0; c < N; c++) NODES.push({
+    x: x0 + c * (BOX + GAP), y: y0 + r * (BOX + GAP),
+    // white fill: top row, center column — except last row, where it's the 2nd box
+    white: r === 0 || (r === ROWS - 1 ? c === 3 : c === 2),
+    icon: iconFor(r, c), wa: r + c, wd: r + c,
+    dir: (r + c) % 2 ? 1 : -1, spd: SPIN * (0.8 + ((r * 5 + c * 3) % 5) * 0.09),
+  });
+} else {
+  // A six-row pyramid on an equilateral lattice, like Luxor's 60° peaks. The lower-left
+  // ten boxes are the small peak and the other eleven the tall one; no wire crosses
+  // between them, which leaves the mark's seam. Built from the base up, row by row from
+  // the middle out; it crumbles from the apex down.
+  const ROWS = 6, S = 52, V = S * Math.sqrt(3) / 2, apexY = 36;   // base ends where the grid did
+  BOX = 30;
+  layoutW = (ROWS - 1) * S + BOX;
+  layoutBottom = apexY + (ROWS - 1) * V + BOX / 2;
+  const small = (r, k) => r >= 2 && k <= r - 2;
+  const ICONS = { '0,0': 'claude', '1,0': 'codex', '1,1': 'opencode', '2,2': 'gemini',
+                  '3,2': 'vscode', '4,4': 'goose', '5,4': 'pi' };
+  const at = {};
+  for (let r = 0; r < ROWS; r++) for (let k = 0; k <= r; k++) {
+    const cx = W / 2 + (k - r / 2) * S, cy = apexY + r * V, out = Math.abs(k - r / 2) * 0.4;
+    at[r + ',' + k] = NODES.length;
+    NODES.push({
+      x: cx - BOX / 2, y: cy - BOX / 2,
+      white: !small(r, k), icon: ICONS[r + ',' + k] || null,
+      wa: (ROWS - 1 - r) * 1.2 + out, wd: r * 1.2 + out,
+      dir: (r + k) % 2 ? 1 : -1, spd: SPIN * (0.8 + ((r * 5 + k * 3) % 5) * 0.09),
+    });
+  }
+  for (let r = 0; r < ROWS; r++) for (let k = 0; k <= r; k++)
+    for (const [r2, k2] of [[r, k + 1], [r + 1, k], [r + 1, k + 1]]) {
+      const j = at[r2 + ',' + k2];
+      if (j !== undefined && small(r, k) === small(r2, k2)) EDGES.push([at[r + ',' + k], j]);
+    }
+}
+const MAXA = Math.max(...NODES.map(n => n.wa)), MAXD = Math.max(...NODES.map(n => n.wd));
+const allAppeared = MAXA * T.appearWave + T.appearDur;
+const mStart = w => allAppeared + T.preMorph + w * T.morphWave;
+const lastMorphEnd = mStart(MAXA) + T.morphDur;
+const dStart = w => lastMorphEnd + T.spinHold + w * T.dissolveWave;
+const logoStart = dStart(MAXD) + T.dissolveDur;
+const loopLen = logoStart + T.logoDur + T.endPause;
+for (const n of NODES) {
+  n.cx = n.x + BOX / 2; n.cy = n.y + BOX / 2;
+  n.as = n.wa * T.appearWave; n.ms = mStart(n.wa); n.ds = dStart(n.wd);
+}
+const spawnAcc = new Array(NODES.length).fill(0);
+
+/* Luxor: each wire grows out of the box that appeared first as its other end appears,
+   carries a gold spark while the cubes spin, and goes when either end starts to crumble. */
+function drawWires(t) {
+  ctx.save();
+  ctx.lineCap = 'round';
+  EDGES.forEach(([i, j], e) => {
+    const a = NODES[i], b = NODES[j];
+    const [p, q] = a.as <= b.as ? [a, b] : [b, a];
+    const grow = easeOut(clamp01((t - q.as) / T.appearDur));
+    const fade = 1 - clamp01((t - Math.min(a.ds, b.ds)) / 450);
+    if (grow <= 0 || fade <= 0) return;
+    ctx.globalAlpha = fade;
+    ctx.strokeStyle = 'rgba(255,255,255,0.75)';
+    ctx.lineWidth = 1.8;
+    ctx.beginPath();
+    ctx.moveTo(p.cx, p.cy);
+    ctx.lineTo(p.cx + (q.cx - p.cx) * grow, p.cy + (q.cy - p.cy) * grow);
+    ctx.stroke();
+    if (t >= allAppeared && e % 2 === 0) {
+      const u = (t / 1100 + e * 0.37) % 1;
+      const [f, g] = e % 4 ? [p, q] : [q, p];
+      ctx.fillStyle = `rgb(${SAND_RGB})`;
+      ctx.shadowColor = `rgba(${SAND_RGB},0.9)`;
+      ctx.shadowBlur = 8;
+      ctx.beginPath();
+      ctx.arc(f.cx + (g.cx - f.cx) * u, f.cy + (g.cy - f.cy) * u, 2.6, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.shadowBlur = 0;
+    }
+  });
+  ctx.restore();
+}
+
+/* Luxor's mark (the nav's gold peaks, viewBox -0.5 -0.5 30 27), fitted over the pyramid:
+   as wide as it, sitting on its base */
+let LUXOR_P2D = null;
+function drawLuxorMark() {
+  if (!LUXOR_P2D) LUXOR_P2D = new Path2D(
+    [...document.querySelectorAll('nav .brand-lx path')].map(p => p.getAttribute('d')).join(' '));
+  const sc = layoutW / 29.3;                       // the peaks span x 0 → 29.3, y 0.6 → 25.57
+  ctx.save();
+  ctx.translate(W / 2 - 14.65 * sc, layoutBottom - 25.57 * sc);
+  ctx.scale(sc, sc);
+  ctx.shadowColor = `rgba(${SAND_RGB},0.55)`;
+  ctx.shadowBlur = 22;
+  ctx.fillStyle = `rgb(${SAND_RGB})`;
+  ctx.fill(LUXOR_P2D);
+  ctx.restore();
+}
+
 function roundRect(x, y, w, h, r) {
   ctx.beginPath();
   ctx.moveTo(x + r, y);
@@ -1977,18 +2082,11 @@ function frame(now) {
   lastT = t;
 
   ctx.clearRect(0, 0, W, H);
+  if (EDGES.length) drawWires(t);                // under the boxes
 
-  for (let r = 0; r < ROWS; r++) for (let c = 0; c < N; c++) {
-    const idx = r * N + c;
-    const w = r + c;                             // diagonal wave index
-    // white fill: top row, center column — except last row, where it's the 2nd box
-    const isWhite = r === 0 || (r === ROWS - 1 ? c === 3 : c === 2);
-    const bx = x0 + c * (BOX + GAP);
-    const by = y0 + r * (BOX + GAP);
-    const cx = bx + BOX / 2, cy = by + BOX / 2, s = BOX / 2;
-    const aStart = w * T.appearWave;
-    const ms = mStart(w);
-    const ds = dStart(w);
+  for (let idx = 0; idx < NODES.length; idx++) {
+    const { x: bx, y: by, cx, cy, white: isWhite, icon: ic, as: aStart, ms, ds } = NODES[idx];
+    const s = BOX / 2;
 
     if (t < aStart) continue;
 
@@ -1999,19 +2097,17 @@ function frame(now) {
       const sz = BOX * sc, off = (BOX - sz) / 2;
       ctx.globalAlpha = p;
       drawBox(bx + off, by + off, sz, sz, isWhite);
-      { const ic = iconFor(r, c); if (ic) drawIcon(ic, cx, cy, sz, !isWhite); }
+      if (ic) drawIcon(ic, cx, cy, sz, !isWhite);
       ctx.globalAlpha = 1;
     } else if (t < ms) {
       // solid flat box, waiting to cube up
       drawBox(bx, by, BOX, BOX, isWhite);
-      { const ic = iconFor(r, c); if (ic) drawIcon(ic, cx, cy, BOX, !isWhite); }
+      if (ic) drawIcon(ic, cx, cy, BOX, !isWhite);
     } else {
       // ---- cube territory ----
       const md = Math.min(1, (t - ms) / T.morphDur);
       const depth = easeOut(md);                 // 0 flat -> 1 full cube
-      const dir = (r + c) % 2 ? 1 : -1;          // checkerboard spin directions
-      const spd = SPIN * (0.8 + ((r * 5 + c * 3) % 5) * 0.09);
-      const ay = dir * spd * (t - ms);           // spin around Y
+      const ay = NODES[idx].dir * NODES[idx].spd * (t - ms);  // spin around Y, neighbours opposite ways
       const ax = TILT * depth;                   // tilt in as it extrudes
 
       if (t < ds) {
@@ -2021,7 +2117,7 @@ function frame(now) {
         if (boxA > 0) {
           ctx.globalAlpha = boxA;
           drawBox(bx, by, BOX, BOX, isWhite);
-          { const ic = iconFor(r, c); if (ic) drawIcon(ic, cx, cy, BOX, !isWhite); }
+          if (ic) drawIcon(ic, cx, cy, BOX, !isWhite);
           ctx.globalAlpha = 1;
         }
       } else if (t < ds + T.dissolveDur) {
@@ -2059,19 +2155,17 @@ function frame(now) {
     }
   }
 
-  // pulsating logo: only the white-square pattern, after the dissolve
+  // pulsating logo after the dissolve: ixio's white-square pattern, or Luxor's peaks
   if (t >= logoStart && t < logoStart + T.logoDur) {
     const tl = t - logoStart;
     const fade = Math.min(1, tl / 450) * Math.min(1, (T.logoDur - tl) / 550);
     const breath = 0.72 + 0.28 * Math.sin(2 * Math.PI * tl / 950 - Math.PI / 2);
     ctx.globalAlpha = fade * breath;
-    for (let r = 0; r < ROWS; r++) for (let c = 0; c < N; c++) {
-      const white = r === 0 || (r === ROWS - 1 ? c === 3 : c === 2);
-      if (!white) continue;
-      const lx = x0 + c * (BOX + GAP), ly = y0 + r * (BOX + GAP);
-      drawBox(lx, ly, BOX, BOX, true);
-      const ic = iconFor(r, c);
-      if (ic) drawIcon(ic, lx + BOX / 2, ly + BOX / 2, BOX);
+    if (LUXOR) drawLuxorMark();
+    else for (const n of NODES) {
+      if (!n.white) continue;
+      drawBox(n.x, n.y, BOX, BOX, true);
+      if (n.icon) drawIcon(n.icon, n.cx, n.cy, BOX);
     }
     ctx.globalAlpha = 1;
   }
@@ -2086,11 +2180,11 @@ function frame(now) {
     q.x += q.vx * dt + Math.sin((q.age * 9) + q.r * 40) * 0.25;
     q.y += q.vy * dt;
     const a = 1 - (q.age / q.life);
-    // white grains cool into sand
+    // white grains cool into the brand's sand
     const mix = Math.min(1, q.age * 1.6 * (0.5 + q.sandy));
-    const r = Math.round(237 + (217 - 237) * mix);
-    const g = Math.round(237 + (201 - 237) * mix);
-    const b = Math.round(237 + (163 - 237) * mix);
+    const r = Math.round(237 + (SAND_RGB[0] - 237) * mix);
+    const g = Math.round(237 + (SAND_RGB[1] - 237) * mix);
+    const b = Math.round(237 + (SAND_RGB[2] - 237) * mix);
     ctx.fillStyle = `rgba(${r},${g},${b},${a * 0.9})`;
     ctx.fillRect(q.x, q.y, q.r, q.r);
   }
@@ -2098,14 +2192,14 @@ function frame(now) {
   // soft settled dune (radial, no hard edges)
   const duneA = Math.min(0.5, particles.length / 900);
   if (duneA > 0.02) {
-    const cx = W / 2, cy = gridBottom + 58;
-    const grd = ctx.createRadialGradient(cx, cy, 0, cx, cy, rowW * 0.6);
-    grd.addColorStop(0, `rgba(217,201,163,${duneA * 0.22})`);
-    grd.addColorStop(1, 'rgba(217,201,163,0)');
+    const cx = W / 2, cy = layoutBottom + 58;
+    const grd = ctx.createRadialGradient(cx, cy, 0, cx, cy, layoutW * 0.6);
+    grd.addColorStop(0, `rgba(${SAND_RGB},${duneA * 0.22})`);
+    grd.addColorStop(1, `rgba(${SAND_RGB},0)`);
     ctx.save();
     ctx.translate(cx, cy); ctx.scale(1, 0.16); ctx.translate(-cx, -cy);
     ctx.fillStyle = grd;
-    ctx.beginPath(); ctx.arc(cx, cy, rowW * 0.6, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(cx, cy, layoutW * 0.6, 0, Math.PI * 2); ctx.fill();
     ctx.restore();
   }
 
