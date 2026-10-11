@@ -207,6 +207,21 @@
   .ha-badge { flex: none; margin-left: auto; color: var(--sand); border: 1px solid rgba(217,201,163,.4); border-radius: 999px; padding: 1px 9px; font-size: 10.5px; }
   @keyframes haIn { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: none; } }
   @keyframes haBlink { 50% { opacity: 0; } }
+  .home-connect { margin-top: 84px; width: min(1100px, 92vw); display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr); gap: 36px;
+    align-items: center; text-align: left; border: 1px solid var(--line); border-radius: 20px; background: #070707; padding: 36px 40px; }
+  .home-connect h2 { font-size: clamp(23px, 2.2vw, 29px); line-height: 1.2; letter-spacing: -.02em; margin: 10px 0 12px; }
+  .home-connect p { color: #a3a3a3; font-size: 15px; line-height: 1.6; }
+  .home-connect-link { display: inline-block; margin-top: 16px; color: var(--sand); font-size: 14px; text-decoration: none; }
+  .home-connect-link:hover { text-decoration: underline; }
+  .home-connect-paste { border: 1px solid #1e1e1e; border-radius: 12px; background: #0a0a0a; overflow: hidden; }
+  .home-connect-bar { display: flex; align-items: center; justify-content: space-between; padding: 9px 12px; border-bottom: 1px solid #1e1e1e;
+    font-family: "SF Mono", monospace; font-size: 10.5px; letter-spacing: .08em; text-transform: uppercase; color: #6a6a6a; }
+  .home-copy { border: 1px solid var(--line); background: #111; color: var(--fg); font: inherit; font-size: 11px; letter-spacing: 0; text-transform: none;
+    padding: 4px 11px; border-radius: 999px; cursor: pointer; }
+  .home-copy:hover { border-color: #555; }
+  .home-connect-paste pre { margin: 0; padding: 14px 16px; font-family: "SF Mono", monospace; font-size: 12.5px; line-height: 1.7; color: #d6d6d6;
+    white-space: pre-wrap; word-break: break-word; }
+  @media (max-width: 900px) { .home-connect { grid-template-columns: 1fr; padding: 26px 20px; gap: 22px; } }
   .home-shipped { margin-top: 84px; width: min(1100px, 92vw); text-align: left; }
   .home-shipped h2 { font-size: clamp(25px, 2.5vw, 33px); letter-spacing: -.02em; margin-top: 10px; }
   .home-shipped-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; margin-top: 22px; }
@@ -639,6 +654,20 @@
       <p>CI runners that materialize for your workflow and vanish the moment the job is green.</p>
     </div>
   </div>
+  <section class="home-connect" aria-labelledby="homeConnectTitle">
+    <div class="home-connect-copy">
+      <div class="home-eyebrow">For your coding agent</div>
+      <h2 id="homeConnectTitle">Run arenas from Claude Code or Codex</h2>
+      <p>A skill that gives your agent the whole architecture on your own Tenki account and your own keys: race several builds in throwaway sandboxes, judge them, keep the best.</p>
+      <a class="home-connect-link" href="https://github.com/opencolin/sandboxmaxxing/tree/main/skills/sandboxmaxxing" target="_blank" rel="noopener">Read the skill on GitHub →</a>
+    </div>
+    <div class="home-connect-paste">
+      <div class="home-connect-bar"><span>Paste into your agent</span><button type="button" class="home-copy" onclick="copyAgentPrompt(this)">Copy</button></div>
+      <pre id="agentPrompt">Install the sandboxmaxxing skill from
+https://github.com/opencolin/sandboxmaxxing/tree/main/skills/sandboxmaxxing
+and run an arena with claude, codex and opencode for: build a habit tracker with streaks</pre>
+    </div>
+  </section>
   <section class="home-shipped" id="homeShipped" hidden>
     <div class="home-eyebrow">Shipped from an arena</div>
     <h2>Built by agents. Still live.</h2>
@@ -1463,6 +1492,17 @@ function goToCode() {
     const card = document.getElementById('openCodeBtn')?.closest('.access-card');
     if (card) card.scrollIntoView({ behavior: 'smooth', block: 'center' });
   }, 80);
+}
+// "Paste into your agent": copy the install-and-run prompt for the skill.
+async function copyAgentPrompt(btn) {
+  const text = document.getElementById('agentPrompt').textContent;
+  try { await navigator.clipboard.writeText(text); btn.textContent = 'Copied'; }
+  catch {   // no clipboard permission: select it so Cmd/Ctrl-C works
+    const r = document.createRange(); r.selectNodeContents(document.getElementById('agentPrompt'));
+    const sel = getSelection(); sel.removeAllRanges(); sel.addRange(r);
+    btn.textContent = /Mac|iPhone|iPad/.test(navigator.platform) ? 'Press ⌘C' : 'Press Ctrl+C';
+  }
+  setTimeout(() => { btn.textContent = 'Copy'; }, 1800);
 }
 // Agents row: read from the Build picker, so it lists exactly what the product runs.
 (() => {

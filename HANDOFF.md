@@ -138,6 +138,32 @@ Kimi-K3 TTFB measured **1.5–3.6s** here, far below the 149.9s that once forced
 4. **Open product question: BYOC?** Does Tenki plan bring-your-own-cloud (sandboxes in the
    customer's VPC)? This decides the positioning — see `SANDBOX-VS-WORKTREE.md`.
 
+## Homepage, shipped wall, and the skill
+
+**Featuring an app on the homepage.** The broker records every shipped app in
+`/home/tenki/broker/gallery.json` with `"featured": false`. `GET /api/gallery` serves only
+entries set to `"featured": true`, and only while their URL still answers, so the
+"Built by agents. Still live." section stays hidden until someone chooses an app. Visitors
+write the prompts and agents build whatever they are asked, so this is deliberately
+manual. To feature one, edit that file on the host and flip the flag; no restart needed.
+Featured apps render in sandboxed iframes (`allow-scripts`, no same-origin).
+
+**The lifecycle section is an illustration**, drawn with the real theater's `.mx-*` styles.
+Keep it truthful when the product changes: one harness per run, the judge outputs
+`WINNER: X` plus a sentence (no scores), ended seats read "stopped".
+
+**`skills/sandboxmaxxing`** is the arena as a skill, for anyone's own coding agent on
+their own Tenki account and keys. The homepage card links to it. It never touches
+sandboxmaxxing.com.
+
+**opencode needs >= 1.18 for its free tier**, and the stock image ships 1.17.20. The
+broker (`OPENCODE_UPGRADE`, shared with maxx) and the skill both upgrade before
+launching; without that, every free-model opencode launch fails.
+
+**Open risk: `/api/maxx` has no rate limit** — only capacity checks. Anyone can launch
+runs that spend the Aisa key. That's why the skill runs on the user's own keys rather
+than pointing at this API.
+
 ## Rebuild runbook (the thing you will actually need)
 
 The host dies periodically and the session scratchpad is wiped between sessions, so this is
