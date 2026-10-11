@@ -528,6 +528,101 @@ async function openTerminal(req, res, id) {
   }
 }
 
+/* VS Code in the browser: code-server, started and exposed by the broker.
+ * Idempotent and pollable, because the domain sits behind a proxy with a request
+ * timeout and installing code-server on a stock image takes a minute or more. So
+ * this never blocks on an install: with code-server present it is started and the
+ * URL returned (200); without it an install is started in the background and the
+ * caller is told to ask again (202). The golden image ships it, so there it takes
+ * seconds.
+ * Access control is the preview host, as in agentcamp: code-server runs with
+ * --auth none. That grants nothing beyond what the visitor already holds — a root
+ * shell in the same disposable VM through the terminal. */
+const CODE_PORT = 8085;
+const CODE_SCRIPT = `
+CS="$(command -v code-server || true)"
+[ -z "$CS" ] && [ -x "$HOME/.local/bin/code-server" ] && CS="$HOME/.local/bin/code-server"
+if [ -z "$CS" ]; then
+  if [ ! -e /tmp/code-server.installing ]; then
+    touch /tmp/code-server.installing
+    setsid nohup bash -c 'curl -fsSL https://code-server.dev/install.sh | sh -s -- --method standalone --prefix "$HOME/.local"; rm -f /tmp/code-server.installing' >/tmp/code-server-install.log 2>&1 </dev/null &
+  fi
+  echo CODE_INSTALLING; exit 0
+fi
+# Without this every folder opens in Restricted Mode asking "trust this folder?" on a
+# machine that is the visitor's own. Automatic tasks stay off: a cloned repo's tasks
+# would otherwise run the moment its folder opens. (Same settings as agentcamp.)
+python3 - <<'PY' >/dev/null 2>&1 || true
+import json, os
+p = os.path.expanduser("~/.local/share/code-server/User/settings.json")
+try:
+    s = json.load(open(p))
+except FileNotFoundError:
+    s = {}
+except Exception:
+    s = None
+if isinstance(s, dict):
+    s["security.workspace.trust.enabled"] = False
+    s.setdefault("task.allowAutomaticTasks", "off")
+    os.makedirs(os.path.dirname(p), exist_ok=True)
+    json.dump(s, open(p, "w"), indent=2)
+PY
+curl -sf -o /dev/null http://127.0.0.1:${CODE_PORT}/healthz && { echo CODE_OK; exit 0; }
+# Not answering yet: start it unless it is already starting. A pidfile, not pgrep -f —
+# this very script is bash's argv, so pgrep -f would always find itself.
+if ! { [ -s /tmp/code-server.pid ] && kill -0 "$(cat /tmp/code-server.pid)" 2>/dev/null; }; then
+  setsid nohup "$CS" --auth none --disable-telemetry --disable-workspace-trust --bind-addr 0.0.0.0:${CODE_PORT} /home/tenki >/tmp/code-server.log 2>&1 </dev/null &
+  echo $! > /tmp/code-server.pid
+fi
+echo CODE_STARTING
+`;
+// Exposures in flight, by session. The FIRST exposure of a port measured ~45s
+// (2026-10-11), longer than the proxy in front of /api waits (~30s), so it runs
+// in the background and the caller polls.
+const codeExposing = new Map();
+async function openCode(req, res, id) {
+  const entry = tracked[id];
+  if (!entry) return json(res, 404, { error: "not_found" });
+  if (entry.code && new Date(entry.code.expiresAt) > new Date(Date.now() + 60_000))
+    return json(res, 200, entry.code);
+  if (codeExposing.has(id)) return json(res, 202, { status: "starting" });
+  try {
+    const s = await client.get(id);
+    if (s.state !== "RUNNING") return json(res, 409, { error: "not_running", state: s.state });
+    const out = stdoutText(await s.exec("bash", { args: ["-lc", CODE_SCRIPT], timeoutMs: 20_000 }));
+    if (out.includes("CODE_INSTALLING")) return json(res, 202, { status: "installing" });
+    if (out.includes("CODE_STARTING")) return json(res, 202, { status: "starting" });
+    if (!out.includes("CODE_OK")) {
+      log("code_start_failed", { id });
+      return json(res, 502, { error: "code_failed" });
+    }
+    const remainingMs = Math.max(60_000, new Date(s.timeoutAt) - Date.now());
+    const exposing = s.exposePort(CODE_PORT, { ttlMs: remainingMs })
+      .then((exposed) => {
+        entry.code = {
+          url: exposed.previewUrl,
+          expiresAt: exposed.expiresAt ?? new Date(Date.now() + remainingMs).toISOString(),
+        };
+        saveState();
+        log("code_opened", { id });
+      })
+      .catch((e) => log("code_expose_failed", { id, message: e.message }))
+      .finally(() => codeExposing.delete(id));
+    codeExposing.set(id, exposing);
+    // A quick exposure answers in this request; a slow one is picked up by the next poll.
+    await Promise.race([exposing, new Promise((r) => setTimeout(r, 15_000))]);
+    return entry.code ? json(res, 200, entry.code) : json(res, 202, { status: "starting" });
+  } catch (e) {
+    if (e instanceof SessionNotFoundError) {
+      delete tracked[id];
+      saveState();
+      return json(res, 410, { error: "expired" });
+    }
+    log("code_failed", { id, message: e.message });
+    return json(res, 502, { error: "code_failed" });
+  }
+}
+
 /* The sandbox publishes one of its OWN ports, authenticated by its per-session
  * expose token. This is what lets the workspace key stay in the broker and never
  * enter the visitor-controlled VM. Scoped hard: only this session, only an
@@ -807,6 +902,7 @@ http.createServer(async (req, res) => {
       if (req.method === "DELETE" && seg.length === 3) return await destroyDemoSession(res, seg[2]);
       if (req.method === "POST" && seg.length === 4 && seg[3] === "terminal") return await openTerminal(req, res, seg[2]);
       if (req.method === "POST" && seg.length === 4 && seg[3] === "expose") return await exposePort(req, res, seg[2]);
+      if (req.method === "POST" && seg.length === 4 && seg[3] === "code") return await openCode(req, res, seg[2]);
       return json(res, 404, { error: "not_found" });
     }
     if (seg[0] === "api" && seg[1] === "maxx") {

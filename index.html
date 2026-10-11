@@ -258,7 +258,7 @@
   .agent-menu .chip { width: 100%; justify-content: flex-start; border-color: transparent; }
   .agent-menu .chip:hover, .agent-menu .chip:focus-visible { border-color: var(--line); outline: none; }
   /* Build box: example prompts, four at a time */
-  .prompt-rotator { align-items: center; min-height: 40px; transition: opacity .25s ease; }
+  .prompt-rotator { align-items: center; min-height: 40px; margin-top: 12px; transition: opacity .25s ease; }
   .prompt-rotator.fading { opacity: 0; }
   .prompt-more { color: var(--muted); padding: 9px 12px; }
   .prompt-more:hover { color: var(--fg); }
@@ -276,9 +276,9 @@
   .prompt-foot em { color: var(--sand); font-style: normal; }
 
   /* review / git */
-  .tos { text-align: center; color: var(--muted); font-size: 14px; max-width: 52ch; margin: 4px auto 26px; line-height: 1.6; }
+  .tos { color: var(--muted); font-size: 14px; max-width: 52ch; margin: 4px 0 26px; line-height: 1.6; }
   .tos b { color: #c9c9c9; font-weight: 500; }
-  .git-btns { display: flex; flex-direction: column; gap: 14px; max-width: 480px; margin: 0 auto; }
+  .git-btns { display: flex; flex-direction: column; gap: 14px; max-width: 480px; margin: 0; }
   .git-btn {
     display: flex; align-items: center; justify-content: center; gap: 12px;
     border: 1px solid var(--line); background: #000; color: var(--fg);
@@ -567,6 +567,7 @@
           placeholder="Run my eval suite across 50 parallel environments with reproducible snapshot states."></textarea>
       </div>
     </div>
+    <div class="chips prompt-rotator" id="promptChips" aria-label="Example prompts" aria-live="polite"></div>
     <div class="build-scale">
         <div class="build-scale-group">
           <span class="mx-ctl-label">Scale</span>
@@ -640,8 +641,7 @@
           title="Skip every approval prompt inside the sandbox (claude --dangerously-skip-permissions, codex --dangerously-bypass-approvals-and-sandbox, opencode --auto)">Full-Auto · on</button>
         <button class="btn btn-primary" id="buildBtn" onclick="deployBuild(this)" disabled>Build</button>
       </div>
-    <div class="chips prompt-rotator" id="promptChips" aria-label="Example prompts" aria-live="polite"></div>
-    <p class="prompt-foot">You're <em>one prompt away</em>. You can also drag and drop your project, or choose a file or a folder.</p>
+    <p class="prompt-foot">You're <em>one prompt away</em>.</p>
   </section>
 
   <!-- 2. access -->
@@ -682,7 +682,7 @@
       <div class="access-card">
         <h3>VS Code in the browser</h3>
         <p>A full editor attached to your sandbox's filesystem, one click away.</p>
-        <button class="btn btn-ghost" disabled>Coming soon</button>
+        <button class="btn btn-ghost" id="openCodeBtn" onclick="openCode(this)" disabled>Open VS Code</button>
       </div>
       <div class="access-card">
         <h3>Terminal in the browser</h3>
@@ -704,7 +704,7 @@ tenki sandbox ssh --session my-box</div>
   <!-- 3. review -->
   <section class="panel">
     <div class="panel-label">03 · Review</div>
-    <h2 style="text-align:center">Review your code</h2>
+    <h2>Review your code</h2>
     <p class="tos">If you don't have an ixio account, by proceeding, you agree to creating
       an ixio account subject to our <b>Terms of Service</b> and <b>Privacy Policy</b>.</p>
     <div class="git-btns">
@@ -1218,6 +1218,7 @@ function sbxStatus(kind, html) {
   sbxText().innerHTML = html;
   const off = kind !== 'live';
   termBtn().disabled = off;
+  document.getElementById('openCodeBtn').disabled = off;
   // In sandboxmaxxing mode the Build button launches its own seat sandboxes, so
   // it must NOT be gated on the single demo sandbox being live.
   if (!dpMaxxMode()) document.getElementById('buildBtn').disabled = off;
@@ -1298,6 +1299,33 @@ async function ensureDemoSession() {
   }
 }
 
+// VS Code (code-server) in the live sandbox. The broker answers 202 while it installs
+// code-server on an image that lacks it, so keep asking until the URL arrives.
+async function openCode(btn) {
+  if (sbx.state !== 'RUNNING' || !sbx.id) return;
+  const orig = btn.textContent;
+  btn.disabled = true; btn.textContent = 'Opening…';
+  const win = window.open('', '_blank'); // inside the click gesture so popup blockers allow it
+  if (win) win.document.write('<title>VS Code</title><body style="margin:0;height:100vh;display:grid;place-items:center;background:#0a0a0a;color:#9a9a9a;font:14px system-ui">Starting VS Code in your sandbox…</body>');
+  try {
+    for (let i = 0; i < 80; i++) {            // ~4 minutes at 3s: a first install takes 1-2
+      const r = await fetch(`${SBX_API}/${sbx.id}/code`, { method: 'POST' });
+      if (r.status === 202) { btn.textContent = 'Installing VS Code…'; await new Promise(res => setTimeout(res, 3000)); continue; }
+      if (!r.ok) throw new Error();
+      const { url } = await r.json();
+      if (win) win.location = url;
+      else sbxStatus('live', `VS Code ready · <a href="${url}" target="_blank" rel="noopener">open it ↗</a>`);
+      return;
+    }
+    throw new Error('timeout');
+  } catch {
+    if (win) win.close();
+    sbxAgainLink('VS Code didn’t start.');
+  } finally {
+    btn.textContent = orig;
+    btn.disabled = sbx.state !== 'RUNNING';
+  }
+}
 async function openTerminal(agent, el, prompt) {
   if (sbx.state !== 'RUNNING' || !sbx.id) return;
   const btn = el || termBtn();
