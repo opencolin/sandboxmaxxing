@@ -67,13 +67,11 @@ Kimi-K3 TTFB measured **1.5–3.6s** here, far below the 149.9s that once forced
 1. ~~Domain is 404.~~ **Fixed 2026-10-09.** The Vercel project `sandboxmaxxing`
    (`prj_040XXuVRiTDS4BhgZ96ZDYbarAPx`, team `dablclub`) proxies the domain to the sandbox. When
    the workspace suffix changes, redeploy it with the new suffix — it holds **only** `vercel.json`
-   (no `index.html`, or the static file wins over the rewrite), and **both** rules are required
-   because `/:path*` alone does not match the bare root:
-   ```json
-   { "rewrites": [
-     { "source": "/",       "destination": "https://sandboxmaxxing--swc27h.us.sb.tenki.sh/" },
-     { "source": "/:path*", "destination": "https://sandboxmaxxing--swc27h.us.sb.tenki.sh/:path*" } ]}
-   ```
+   (no `index.html`, or the static file wins over the rewrite). The file is
+   **[`deploy/vercel.json`](deploy/vercel.json)** — deploy exactly that, replacing the suffix in
+   all three rules. The `/` and `/:path*` rules are both required because `/:path*` alone does
+   not match the bare root. The first rule sends luxor.sh's `/skill.md` to the Luxor-branded
+   skill, and must stay first, before the catch-all.
    Deploy it with the Vercel MCP `create_deployment` tool (`target: "production"`, `files` inline,
    `project: prj_040XXuVRiTDS4BhgZ96ZDYbarAPx`, `slug: dablclub`). Note: `deploy_to_vercel` is
    **dead** — it returns "not found" — but `create_deployment` does the same job. Don't conclude
@@ -160,6 +158,13 @@ their own Tenki account and keys. It is **published at `sandboxmaxxing.com/skill
 verbatim — re-push all three whenever the skill changes, or the two drift. The arena it
 runs never touches sandboxmaxxing.com.
 
+**luxor.sh/skill.md is a Luxor-branded copy** (`name: luxor-swarm`, installs from luxor.sh into
+`~/.claude/skills/luxor-swarm`). It is generated, never hand-edited: run
+`python3 skills/sandboxmaxxing/make-luxor-skill.py` after editing `SKILL.md` and push both. Only
+the branding differs; the scripts are shared, so luxor.sh/skill/arena.sh is the same file. The
+host serves it at `/luxor/skill.md`, and a host-conditional rewrite in the Vercel project maps
+luxor.sh's `/skill.md` onto it — markdown can't use the page's JavaScript brand switch.
+
 **opencode needs >= 1.18 for its free tier**, and the stock image ships 1.17.20. The
 broker (`OPENCODE_UPGRADE`, shared with maxx) and the skill both upgrade before
 launching; without that, every free-model opencode launch fails.
@@ -222,6 +227,8 @@ tenki sandbox exec  --session $HOST -- bash -lc 'mkdir -p /home/tenki/site/skill
 tenki sandbox write --session $HOST --path /home/tenki/site/skill.md                  --data-file skills/sandboxmaxxing/SKILL.md
 tenki sandbox write --session $HOST --path /home/tenki/site/skill/arena.sh            --data-file skills/sandboxmaxxing/scripts/arena.sh
 tenki sandbox write --session $HOST --path /home/tenki/site/skill/inject-provider.sh  --data-file skills/sandboxmaxxing/scripts/inject-provider.sh
+python3 skills/sandboxmaxxing/make-luxor-skill.py   # luxor.sh/skill.md, rewritten to /luxor/skill.md
+tenki sandbox write --session $HOST --path /home/tenki/site/luxor/skill.md            --data-file skills/sandboxmaxxing/SKILL.luxor.md
 
 # 4. deps + service
 tenki sandbox exec --session $HOST -- bash -lc 'cd /home/tenki/broker && npm install --omit=dev'

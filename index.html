@@ -704,6 +704,20 @@
     <div class="home-eyebrow">Works with the coding agents you already use</div>
     <div class="home-agents-row" id="homeAgents"></div>
   </section>
+  <section class="home-connect" aria-labelledby="homeConnectTitle">
+    <div class="home-connect-copy">
+      <div class="home-eyebrow">For your coding agent</div>
+      <h2 id="homeConnectTitle">Run agent swarms from Claude Code or Codex</h2>
+      <p>A skill that gives your agent the whole architecture on your own Tenki account and your own keys: race several builds in throwaway sandboxes, judge them, keep the best.</p>
+      <a class="home-connect-link" href="/skill.md" target="_blank" rel="noopener">Read the skill →</a>
+    </div>
+    <div class="home-connect-paste">
+      <div class="home-connect-bar"><span>Paste into your agent</span><button type="button" class="home-copy" onclick="copyAgentPrompt(this)">Copy</button></div>
+      <pre id="agentPrompt">Read https://<span class="b-ixio">sandboxmaxxing.com</span><span class="b-lx">luxor.sh</span>/skill.md and follow it
+to run an arena with claude, codex and opencode for:
+build a habit tracker with streaks</pre>
+    </div>
+  </section>
   <section class="home-flow" aria-labelledby="homeFlowTitle">
     <div class="home-flow-copy">
       <div class="home-eyebrow">Sandboxmaxxing</div>
@@ -796,20 +810,6 @@
         </tbody>
       </table>
       <div class="home-table-cap">Real open-source builds · Tenki's published results · <a href="https://tenki.cloud/docs/runners/benchmarks" target="_blank" rel="noopener">methodology →</a></div>
-    </div>
-  </section>
-  <section class="home-connect" aria-labelledby="homeConnectTitle">
-    <div class="home-connect-copy">
-      <div class="home-eyebrow">For your coding agent</div>
-      <h2 id="homeConnectTitle">Run agent swarms from Claude Code or Codex</h2>
-      <p>A skill that gives your agent the whole architecture on your own Tenki account and your own keys: race several builds in throwaway sandboxes, judge them, keep the best.</p>
-      <a class="home-connect-link" href="/skill.md" target="_blank" rel="noopener">Read the skill →</a>
-    </div>
-    <div class="home-connect-paste">
-      <div class="home-connect-bar"><span>Paste into your agent</span><button type="button" class="home-copy" onclick="copyAgentPrompt(this)">Copy</button></div>
-      <pre id="agentPrompt">Read https://sandboxmaxxing.com/skill.md and follow it
-to run an arena with claude, codex and opencode for:
-build a habit tracker with streaks</pre>
     </div>
   </section>
   <section class="home-shipped" id="homeShipped" hidden>
@@ -1607,7 +1607,7 @@ function goToCode() {
 }
 // "Paste into your agent": copy the install-and-run prompt for the skill.
 async function copyAgentPrompt(btn) {
-  const text = document.getElementById('agentPrompt').textContent;
+  const text = document.getElementById('agentPrompt').innerText;   // innerText: skips the other brand's hidden span
   try { await navigator.clipboard.writeText(text); btn.textContent = 'Copied'; }
   catch {   // no clipboard permission: select it so Cmd/Ctrl-C works
     const r = document.createRange(); r.selectNodeContents(document.getElementById('agentPrompt'));

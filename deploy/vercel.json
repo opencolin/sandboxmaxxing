@@ -1,0 +1,7 @@
+{
+  "rewrites": [
+    { "source": "/skill.md", "has": [{ "type": "host", "value": "luxor.sh" }], "destination": "https://sandboxmaxxing--swc27h.us.sb.tenki.sh/luxor/skill.md" },
+    { "source": "/", "destination": "https://sandboxmaxxing--swc27h.us.sb.tenki.sh/" },
+    { "source": "/:path*", "destination": "https://sandboxmaxxing--swc27h.us.sb.tenki.sh/:path*" }
+  ]
+}
