@@ -84,15 +84,15 @@ Kimi-K3 TTFB measured **1.5–3.6s** here, far below the 149.9s that once forced
 
 2. **The host keeps dying** — four times now. Once was workspace balance; the others are
    unexplained. Treat rebuild as routine (~3 min, below) and consider automating it.
-3. **Capacity: the broker is still on the 5-slot host workspace** — a 100-slot one exists but has
-   no balance. The broker reads one key, `TENKI_API_KEY`, and creates every seat and demo sandbox
-   in that key's workspace:
+3. ~~Capacity: the broker is on the 5-slot host workspace.~~ **Moved to KEY3 (100 slots) on
+   2026-10-11.** The broker reads one key, `TENKI_API_KEY`, and creates every seat and demo
+   sandbox in that key's workspace:
 
    | `.env` key | Slots | Balance | Status |
    |---|---|---|---|
-   | `TENKI_API_KEY` = `KEY1` | 5 | ✅ | **what the broker uses** — also holds the host + `sandboxmaxxing--swc27h` sticky URL |
-   | `KEY2` | 100 | ❌ **empty** | unusable: `workspace balance is empty; top up to start a sandbox` |
-   | `KEY3` | 100 | ✅ (has running sandboxes) | agentcamp golden-builder |
+   | `KEY1` | 5 | ✅ | holds the host + `sandboxmaxxing--swc27h` sticky URL; the broker's `TENKI_LEGACY_API_KEY` |
+   | `KEY2` | 100 | ❌ **empty** | unusable: `workspace balance is empty; top up to start a sandbox` (re-checked 2026-10-11) |
+   | `TENKI_API_KEY` = `KEY3` | 100 | ✅ | **what the broker uses** — shared with agentcamp's golden-builder |
    | `KEY4` / `KEY5` | 100 | ✅ (has running sandboxes) | agentcamp golden-builder |
 
    **Do not judge a workspace by its quota.** On 2026-10-11 the broker was pointed at KEY2 because
@@ -102,16 +102,23 @@ Kimi-K3 TTFB measured **1.5–3.6s** here, far below the 149.9s that once forced
    quota; the only proof a workspace works is a sandbox that actually reaches RUNNING. The fastest
    check is the broker log: `grep demo_create_failed /home/tenki/broker/broker.log`.
 
-   To get 100 slots: top up KEY2 (cleanest — nothing else runs there) and set
-   `TENKI_API_KEY` to it, or point the broker at KEY3/KEY4, which works today but spends the
-   agentcamp workspace's balance and shares its slots.
+   **Today the broker runs on KEY3**, which spends the agentcamp workspace's balance and shares
+   its 100 slots. To give sandboxmaxxing its own: top up KEY2, check that a sandbox reaches RUNNING
+   there, then set `TENKI_API_KEY` to it.
+
+   **Switching workspaces without orphaning anything.** Sessions created before a switch stay in
+   the old workspace — kept apps, and demos still inside their hour. Set `TENKI_LEGACY_API_KEY` to
+   the old workspace's key: when the main workspace says a session doesn't exist, the broker looks
+   there, so it keeps serving and reaping them. It's set to KEY1 now; remove it once nothing from
+   before 2026-10-11 is left there. (Note the SDK option is `authToken`, not `apiKey` — an
+   unrecognized option silently falls back to the `TENKI_API_KEY` env var.)
 
    Seats living in a different workspace from the host is fine: the broker never manages its own
    preview URL with its key, its reaper only terminates IDs in its own `state.json` (it never lists
    the workspace), and seats reach the broker via the public `BROKER_PUBLIC_URL`.
 
-   To deploy, use the host-workspace key (same as the broker's today, but keep using `KEY1`
-   explicitly so deploys keep working if the broker moves):
+   To deploy, use the host-workspace key, `KEY1` — **not** the broker's `TENKI_API_KEY`, which is
+   KEY3 now and can't see the host:
    ```bash
    TENKI_API_KEY=$(sed -n 's/^TENKI_API_KEY1=//p' broker/.env) tenki sandbox write --session $HOST ...
    ```
@@ -268,7 +275,8 @@ BROKER_PUBLIC_URL=https://sandboxmaxxing--<suffix>.us.sb.tenki.sh   # MUST inclu
 PORT=8080
 SITE_DIR=/home/tenki/site
 DEMO_ENABLED=true
-MAX_DEMO_SANDBOXES=4
+TENKI_LEGACY_API_KEY=<the previous workspace's key, while its sessions live — see Blockers #3>
+MAX_DEMO_SANDBOXES=10
 # plus the provider keys above
 ```
 

@@ -216,6 +216,17 @@ async function readJson(req) {
 }
 
 const client = new TenkiSandbox({ authToken: process.env.TENKI_API_KEY });
+// After moving the broker to another workspace, sessions it created before the move
+// (kept apps, demos still in their hour) live on in the old one. TENKI_LEGACY_API_KEY
+// lets it keep finding — and reaping — them there. Optional; drop it once they're gone.
+if (process.env.TENKI_LEGACY_API_KEY) {
+  const legacy = new TenkiSandbox({ authToken: process.env.TENKI_LEGACY_API_KEY });
+  const getHere = client.get.bind(client);
+  client.get = async (id) => {
+    try { return await getHere(id); }
+    catch (e) { if (e instanceof SessionNotFoundError) return legacy.get(id); throw e; }
+  };
+}
 
 // Robustly terminate a session. closeIfOpen() SKIPS paused sessions (which is
 // what sandboxes become once past their max duration), silently leaving them
@@ -303,7 +314,7 @@ async function createDemoSession(req, res) {
   if (Object.keys(tracked).length >= MAX_DEMO)
     return json(res, 503, { error: "capacity" });
   try {
-    const usage = (await client.getUsage()).find((u) => u.key === "active_sessions");
+    const usage = (await client.getUsage()).find((u) => u.key === "max_concurrent_jobs" || u.key === "active_sessions");
     if (usage?.max !== undefined && usage.current >= usage.max)
       return json(res, 503, { error: "capacity" });
   } catch (e) {
