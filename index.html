@@ -1973,24 +1973,25 @@ if (!LUXOR) {
     dir: (r + c) % 2 ? 1 : -1, spd: SPIN * (0.8 + ((r * 5 + c * 3) % 5) * 0.09),
   });
 } else {
-  // A six-row pyramid on an equilateral lattice, like Luxor's 60° peaks. The lower-left
-  // ten boxes are the small peak and the other eleven the tall one; no wire crosses
-  // between them, which leaves the mark's seam. Built from the base up, row by row from
-  // the middle out; it crumbles from the apex down.
+  // A six-row pyramid on an equilateral lattice, like Luxor's 60° peaks: a tall white peak
+  // of nine boxes wedged between two small dark ones of six, one in each bottom corner. No
+  // wire crosses between peaks, which leaves the seams. Built from the base up, row by row
+  // from the middle out; it crumbles from the apex down.
   const ROWS = 6, S = 52, V = S * Math.sqrt(3) / 2, apexY = 36;   // base ends where the grid did
   BOX = 30;
   layoutW = (ROWS - 1) * S + BOX;
   layoutBottom = apexY + (ROWS - 1) * V + BOX / 2;
-  const small = (r, k) => r >= 2 && k <= r - 2;
-  const ICONS = { '0,0': 'claude', '1,0': 'codex', '1,1': 'opencode', '2,2': 'gemini',
-                  '3,2': 'vscode', '4,4': 'goose', '5,4': 'pi' };
+  // 0 = the tall peak, 1 = the small one bottom-left, 2 = the small one bottom-right
+  const peak = (r, k) => r < 3 ? 0 : k <= r - 3 ? 1 : k >= 3 ? 2 : 0;
+  const ICONS = { '0,0': 'claude', '1,0': 'codex', '1,1': 'opencode', '2,0': 'goose',
+                  '2,2': 'gemini', '3,2': 'vscode', '4,2': 'pi' };
   const at = {};
   for (let r = 0; r < ROWS; r++) for (let k = 0; k <= r; k++) {
     const cx = W / 2 + (k - r / 2) * S, cy = apexY + r * V, out = Math.abs(k - r / 2) * 0.4;
     at[r + ',' + k] = NODES.length;
     NODES.push({
       x: cx - BOX / 2, y: cy - BOX / 2,
-      white: !small(r, k), icon: ICONS[r + ',' + k] || null,
+      white: peak(r, k) === 0, icon: ICONS[r + ',' + k] || null,
       wa: (ROWS - 1 - r) * 1.2 + out, wd: r * 1.2 + out,
       dir: (r + k) % 2 ? 1 : -1, spd: SPIN * (0.8 + ((r * 5 + k * 3) % 5) * 0.09),
     });
@@ -1998,7 +1999,7 @@ if (!LUXOR) {
   for (let r = 0; r < ROWS; r++) for (let k = 0; k <= r; k++)
     for (const [r2, k2] of [[r, k + 1], [r + 1, k], [r + 1, k + 1]]) {
       const j = at[r2 + ',' + k2];
-      if (j !== undefined && small(r, k) === small(r2, k2)) EDGES.push([at[r + ',' + k], j]);
+      if (j !== undefined && peak(r, k) === peak(r2, k2)) EDGES.push([at[r + ',' + k], j]);
     }
 }
 const MAXA = Math.max(...NODES.map(n => n.wa)), MAXD = Math.max(...NODES.map(n => n.wd));

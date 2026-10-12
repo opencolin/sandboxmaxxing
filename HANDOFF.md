@@ -191,8 +191,9 @@ one feature set — never fork the file.
 - On luxor.sh, 02 Access leads with **luxor.computer** and says "computer" for "sandbox".
 - The hero animation is the one place the brands take different layouts (`sand logo animation`
   in `index.html`): ixio keeps its 5×4 grid, whose white boxes are its mark; Luxor gets a
-  six-row pyramid of boxes wired to their neighbours, split into the mark's two peaks (no wire
-  crosses the seam), and the gold mark itself pulses after the sand. Both run the same
+  six-row pyramid of boxes wired to their neighbours, split into three peaks — a tall white
+  one wedged between two small dark ones in the bottom corners (no wire crosses a seam) — and
+  the gold mark itself pulses after the sand. Both run the same
   appear → cube → sand cycle from one `NODES` list, and the sand takes the brand's `--sand-rgb`.
 
 **luxor.sh is attached to the same Vercel project as sandboxmaxxing.com** (`sandboxmaxxing`,
