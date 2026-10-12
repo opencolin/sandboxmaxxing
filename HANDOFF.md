@@ -84,6 +84,17 @@ Kimi-K3 TTFB measured **1.5–3.6s** here, far below the 149.9s that once forced
 
 2. **The host keeps dying** — four times now. Once was workspace balance; the others are
    unexplained. Treat rebuild as routine (~3 min, below) and consider automating it.
+
+   **But check it isn't Tenki first.** On 2026-10-12 at 19:25 UTC the host went dark for ~6
+   minutes: the site timed out, `exec` returned 502, metrics were "unavailable", yet the session
+   still read RUNNING. Creating *any* sandbox in *any* workspace failed with `resource_exhausted:
+   … no live node-agent satisfies placement constraints`, so a rebuild was impossible anyway. The
+   host came back by itself with no reboot and its state intact. If a 1-core create fails like
+   that, wait it out (poll the site) rather than rebuilding.
+
+   Seats launched during such a blip can lose their `apt-get` for tmux to mirror resets. That
+   used to leave the seat idle while the run said "running"; the install now retries, and if tmux
+   still won't install the agent runs under `script(1)` instead — it ships, minus the live view.
 3. ~~Capacity: the broker is on the 5-slot host workspace.~~ **Moved to KEY3 (100 slots) on
    2026-10-11.** The broker reads one key, `TENKI_API_KEY`, and creates every seat and demo
    sandbox in that key's workspace:

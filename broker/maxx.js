@@ -397,12 +397,21 @@ export function createMaxx({ client, tracked, saveState, indexRelay, log, json, 
       ...seedCfg,
       `cat > /tmp/prompt.txt <<'PROMPT'\n${seat.duty}\n\nBUILD REQUEST:\n${run.prompt}${repoNote}${webNote}${publishNote}\nPROMPT`,
       // Run the agent's TUI in a detached tmux session (autonomous + attachable),
-      // so watch drops into the live agent rather than a log tail.
-      `command -v tmux >/dev/null 2>&1 || { sudo apt-get update >/tmp/tmux-install.log 2>&1; sudo apt-get install -y tmux >>/tmp/tmux-install.log 2>&1; }`,
+      // so watch drops into the live agent rather than a log tail. The stock image
+      // has no tmux, and apt's mirrors sometimes reset the connection — once that
+      // left a seat idle while it claimed to be running. So retry, and if tmux still
+      // won't install, run the agent anyway under script(1), which gives the TUI the
+      // terminal it needs; the build still ships, only the live view is missing.
+      `for i in 1 2 3 4; do command -v tmux >/dev/null 2>&1 && break; sudo apt-get update >>/tmp/tmux-install.log 2>&1; sudo apt-get install -y tmux >>/tmp/tmux-install.log 2>&1 || sleep $((i * 5)); done`,
       `cat > /tmp/agent-cmd.sh <<'CMD'\n#!/bin/bash\ncd /home/tenki/work\n${agentCmd}\nCMD`,
       `chmod +x /tmp/agent-cmd.sh`,
-      `tmux kill-server 2>/dev/null; tmux new-session -d -s agent -x 220 -y 50 'bash /tmp/agent-cmd.sh'`,
-      `echo "[maxx] ${harness} running in tmux session 'agent' — watch attaches to the live TUI"`,
+      `if command -v tmux >/dev/null 2>&1; then`,
+      `  tmux kill-server 2>/dev/null; tmux new-session -d -s agent -x 220 -y 50 'bash /tmp/agent-cmd.sh'`,
+      `  echo "[maxx] ${harness} running in tmux session 'agent' — watch attaches to the live TUI"`,
+      `else`,
+      `  echo "[maxx] tmux would not install (see /tmp/tmux-install.log) — running ${harness} without the live view"`,
+      `  script -qfec 'stty cols 220 rows 50 2>/dev/null; TERM=xterm-256color bash /tmp/agent-cmd.sh' /tmp/agent-tty.log </dev/null >/dev/null 2>&1`,
+      `fi`,
     ];
     await runHeadless(session, body);
     seat.state = "running"; seat.terminalUrl = null;
