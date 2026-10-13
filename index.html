@@ -72,15 +72,20 @@
     background: var(--fg); color: #000 !important; font-weight: 500;
   }
   .nav-cta:hover { background: #d4d4d4 !important; color: #000 !important; }
-  /* phones: the links overran the screen and made every view pan sideways. Products and
-     Docs lead nowhere yet, so they step aside for Teams and Deploy. */
+  /* "Machines" jumps to 02 Access; land it below the sticky nav, not under it */
+  #access { scroll-margin-top: 84px; }
+  /* phones: tighter gutters, so the wordmark, Machines and Deploy fit without panning */
   @media (max-width: 640px) {
     nav { padding: 14px 16px; }
-    .nav-links .nav-aux { display: none; }
   }
   @media (max-width: 380px) {
     .brand { gap: 8px; }
     .nav-links a { padding: 7px 10px; }
+  }
+  /* the "sandboxmaxxing" wordmark + Machines + Deploy need a little more room at 320px */
+  @media (max-width: 340px) {
+    nav { padding: 14px 12px; }
+    .nav-links a { padding: 7px 8px; }
   }
 
   /* ---------- Hero ---------- */
@@ -697,9 +702,7 @@
     <span class="brand-name"><span class="b-ixio">sandboxmaxxing</span><span class="b-lx">luxor.sh</span></span>
   </div>
   <div class="nav-links">
-    <a href="#" class="nav-aux">Products</a>
-    <a href="#" onclick="showMaxx(); return false;">Teams</a>
-    <a href="#" class="nav-aux">Docs</a>
+    <a href="#" onclick="goToMachines(); return false;">Machines</a>
     <a href="#" class="nav-cta" onclick="showDeploy(); return false;">Deploy</a>
   </div>
 </nav>
@@ -946,7 +949,7 @@ build a habit tracker with streaks</pre>
   </section>
 
   <!-- 2. access -->
-  <section class="panel">
+  <section class="panel" id="access">
     <div class="panel-label">02 · Access</div>
     <h2>Step into your <span class="b-ixio">sandbox</span><span class="b-lx">computer</span></h2>
     <p class="hint">Human in the loop when you need it — jump in, poke around, jump out. The <span class="b-ixio">sandbox</span><span class="b-lx">computer</span> keeps running.</p>
@@ -1624,6 +1627,11 @@ window.addEventListener('scroll', () =>
 function goToSection(id) {
   showHero();
   setTimeout(() => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 80);
+}
+// Nav "Machines": straight to 02 Access, where you step into a sandbox (Luxor: computer).
+function goToMachines() {
+  showDeploy();
+  setTimeout(() => document.getElementById('access')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 80);
 }
 // "New" pill: straight to the VS Code card in 02 Access.
 function goToCode() {
