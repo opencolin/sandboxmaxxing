@@ -505,7 +505,7 @@ export function createMaxx({ client, tracked, saveState, indexRelay, log, json, 
     id: r.id, template: r.template, state: r.state, mode: r.mode, compete: r.compete,
     harness: r.harness ?? "opencode", provider: r.provider ?? null,
     round: r.round ?? 1, pickedWinner: r.pickedWinner ?? null,
-    deadline: r.deadline, prompt: r.prompt, repoUrl: r.repoUrl ?? null, error: r.error ?? null,
+    createdAt: r.createdAt, deadline: r.deadline, prompt: r.prompt, repoUrl: r.repoUrl ?? null, error: r.error ?? null,
     verdict: r.verdict ?? null,
     teams: r.teams.map((t) => ({
       tag: t.tag, size: t.size ?? t.seats.length, publishedUrl: t.publishedUrl ?? null,

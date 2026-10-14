@@ -72,8 +72,6 @@
     background: var(--fg); color: #000 !important; font-weight: 500;
   }
   .nav-cta:hover { background: #d4d4d4 !important; color: #000 !important; }
-  /* "Machines" jumps to 02 Access; land it below the sticky nav, not under it */
-  #access { scroll-margin-top: 84px; }
   /* phones: tighter gutters, so the wordmark, Machines and Deploy fit without panning */
   @media (max-width: 640px) {
     nav { padding: 14px 16px; }
@@ -540,6 +538,9 @@
   #mxTemplates .chip.sel { border-color: var(--fg); color: var(--fg); background: #161616; }
   /* arena */
   .mx-arena-head { display: flex; align-items: center; gap: 20px; flex-wrap: wrap; margin-bottom: 20px; }
+  .mx-arena-actions { margin-left: auto; display: flex; align-items: center; gap: 24px; flex-wrap: wrap; }
+  /* phones: stats, view tabs, Stop all and New Machine wrap instead of running off the screen */
+  @media (max-width: 640px) { .mx-arena-actions { margin-left: 0; gap: 14px 18px; } }
   .mx-stat { text-align: right; } .mx-stat b { font-family: var(--mono); font-size: 18px; font-weight: 500; display: block; } .mx-stat span { font-family: var(--mono); font-size: 10px; color: #6a6a6a; letter-spacing: .08em; }
   .mx-team { border: 1px solid #222; border-radius: 16px; background: #070707; padding: 16px; }
   .mx-team.win { border-color: rgba(var(--sand-rgb),.5); background: #0c0a06; }
@@ -588,6 +589,7 @@
   .mx-say button:disabled { opacity: .5; cursor: default; }
   .mx-say-hint { font-family: var(--mono); font-size: 10.5px; color: #6a6a6a; padding: 0 12px 10px; }
   .mx-rail { display: flex; flex-direction: column; gap: 9px; max-height: 620px; overflow-y: auto; padding-right: 4px; }
+  .mx-rail-empty { color: #6a6a6a; font-size: 13px; padding: 14px 16px; border: 1px dashed #222; border-radius: 12px; }
   .mx-rail-head { font-family: var(--mono); font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: #6a6a6a; margin-bottom: 2px; }
   .mx-side { display: flex; gap: 10px; align-items: flex-start; padding: 8px; border: 1px solid transparent; border-radius: 11px; cursor: pointer; transition: background .12s, border-color .12s; text-align: left; background: none; font: inherit; width: 100%; }
   .mx-side:hover { background: #101010; border-color: #232323; }
@@ -702,7 +704,7 @@
     <span class="brand-name"><span class="b-ixio">sandboxmaxxing</span><span class="b-lx">luxor.sh</span></span>
   </div>
   <div class="nav-links">
-    <a href="#" onclick="goToMachines(); return false;">Machines</a>
+    <a href="#" onclick="showMaxx(); return false;">Machines</a>
     <a href="#" class="nav-cta" onclick="showDeploy(); return false;">Deploy</a>
   </div>
 </nav>
@@ -1077,7 +1079,7 @@ tenki sandbox ssh --session my-box</div>
         <div class="panel-label" id="mxRunLabel">Sandboxmaxxing · running</div>
         <div id="mxRunPrompt" style="font-size:14px;color:#9a9a9a;max-width:560px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"></div>
       </div>
-      <div style="margin-left:auto;display:flex;align-items:center;gap:24px;">
+      <div class="mx-arena-actions">
         <div class="mx-stat"><b id="mxElapsed">0:00</b><span>ELAPSED</span></div>
         <div class="mx-stat"><b id="mxBuilding" style="color:#3ecf6a;">0</b><span>RUNNING</span></div>
         <div class="mx-stat"><b id="mxPushed" style="color:var(--sand);">0</b><span>PUBLISHED</span></div>
@@ -1086,6 +1088,7 @@ tenki sandbox ssh --session my-box</div>
           <button class="on" onclick="mxSetView('theater',this)">Theater</button>
         </div>
         <button class="btn btn-ghost" id="mxStop" onclick="mxStop()" style="padding:9px 18px;font-size:13px;">Stop all</button>
+        <button class="btn btn-primary" id="mxNew" onclick="mxNewMachine()" style="padding:9px 18px;font-size:13px;">New Machine</button>
       </div>
     </div>
     <div id="mxVerdict" style="display:none;border:1px solid #1e1e1e;border-radius:14px;background:#0a0a0a;padding:16px 20px;margin-bottom:18px;">
@@ -1194,6 +1197,7 @@ function showMaxx() {
   window.scrollTo(0, 0);
   if (location.hash !== '#maxx') history.replaceState(null, '', '#maxx');
   mxInit();
+  if (!mx.runId) mxRestoreOrEmpty();
 }
 // deep links are dispatched at the end of the script, once all view state exists
 function growPrompt() {
@@ -1627,11 +1631,6 @@ window.addEventListener('scroll', () =>
 function goToSection(id) {
   showHero();
   setTimeout(() => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 80);
-}
-// Nav "Machines": straight to 02 Access, where you step into a sandbox (Luxor: computer).
-function goToMachines() {
-  showDeploy();
-  setTimeout(() => document.getElementById('access')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 80);
 }
 // "New" pill: straight to the VS Code card in 02 Access.
 function goToCode() {
@@ -2375,13 +2374,23 @@ async function mxBeginRun(body, promptText) {
   const r = await fetch(MX_API, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
   const data = await r.json();
   if (!r.ok) return { ok: false, data };
-  mx.runId = data.id; mx.started = Date.now(); mx._rendersSig = '';
+  mxOpenRun(data, promptText, Date.now());
+  return { ok: true, data };
+}
+
+// Put a run on the Machines page (theater/grid) and poll it. Used for a run just
+// started and for one resumed after a reload — the id is kept in sessionStorage.
+function mxOpenRun(data, promptText, startedAt) {
+  mx.runId = data.id; mx.started = startedAt || Date.now(); mx._rendersSig = '';
+  mx.playing = null; mx.railSig = '';
+  try { sessionStorage.setItem('mxRunId', data.id); } catch {}
   showMaxx();                    // ensure the arena view is on screen (deep path too)
   document.getElementById('mx-launch').style.display = 'none';
   document.getElementById('mx-arena').style.display = 'block';
   document.getElementById('mxRunPrompt').textContent = promptText;
+  mxStageReset();
   const stop = document.getElementById('mxStop');
-  stop.disabled = false; stop.textContent = 'Stop all'; stop.onclick = mxStop;
+  stop.style.display = ''; stop.disabled = false; stop.textContent = 'Stop all'; stop.onclick = mxStop;
   // Theater is the default view for every run — watching an agent work is the
   // point; Grid stays one click away for the whole-roster overview.
   const tabs = document.querySelectorAll('#mxViewTabs button');
@@ -2390,7 +2399,64 @@ async function mxBeginRun(body, promptText) {
   clearInterval(mx.poll);
   mx.poll = setInterval(mxTick, 3000);
   mxTick();
-  return { ok: true, data };
+}
+
+// The stage's resting state: no terminal, the "pick a seat" prompt.
+let MX_STAGE_EMPTY = null;
+function mxStageReset(emptyHtml) {
+  const empty = document.getElementById('mxStageEmpty');
+  if (MX_STAGE_EMPTY === null) MX_STAGE_EMPTY = empty.innerHTML;
+  const frame = document.getElementById('mxStageFrame');
+  frame.src = 'about:blank'; frame.style.display = 'none';
+  document.getElementById('mxStageOpen').style.display = 'none';
+  document.getElementById('mxSayRow').style.display = 'none';
+  document.getElementById('mxSayHint').style.display = 'none';
+  document.getElementById('mxStageTitle').textContent = emptyHtml ? 'No machines running' : 'Pick a seat to watch';
+  document.getElementById('mxStageSub').textContent = '';
+  empty.innerHTML = emptyHtml || MX_STAGE_EMPTY;
+  empty.style.display = 'flex';
+}
+
+// Machines with nothing running: the theater, empty, with New Machine as the way in.
+function mxShowEmpty() {
+  clearInterval(mx.poll);
+  mx.runId = null; mx.playing = null; mx.railSig = ''; mx._rendersSig = '';
+  document.getElementById('mx-launch').style.display = 'none';
+  document.getElementById('mx-arena').style.display = 'block';
+  document.getElementById('mxRunLabel').textContent = 'Machines';
+  document.getElementById('mxRunPrompt').textContent = 'Nothing running yet.';
+  document.getElementById('mxElapsed').textContent = '0:00';
+  document.getElementById('mxBuilding').textContent = '0';
+  document.getElementById('mxPushed').textContent = '0';
+  document.getElementById('mxStop').style.display = 'none';
+  document.getElementById('mxVerdict').style.display = 'none';
+  const rEl = document.getElementById('mxRenders'); rEl.style.display = 'none'; rEl.innerHTML = '';
+  document.getElementById('mxRail').innerHTML = '<div class="mx-rail-empty">No machines yet.</div>';
+  document.getElementById('mxTeams').innerHTML = '';
+  mxSetView('theater', document.querySelectorAll('#mxViewTabs button')[1]);
+  mxStageReset('<span>Start one with <b style="color:var(--fg);font-weight:500;">New Machine</b> — every agent gets its own machine with a live terminal.</span>');
+}
+
+// Opening Machines with no run in memory: resume this tab's last run if the broker
+// still has it, otherwise show the empty theater.
+async function mxRestoreOrEmpty() {
+  let id = null;
+  try { id = sessionStorage.getItem('mxRunId'); } catch {}
+  mxShowEmpty();
+  if (!id) return;
+  try {
+    const r = await fetch(`${MX_API}/${id}`);
+    const run = r.ok ? await r.json() : null;
+    if (mx.runId) return;                       // a run started meanwhile; leave it
+    if (run && run.state !== 'released') return mxOpenRun(run, run.prompt, run.createdAt);
+  } catch {}
+  try { sessionStorage.removeItem('mxRunId'); } catch {}
+}
+
+// New Machine: the Build prompt on Deploy; starting there lands back here.
+function mxNewMachine() {
+  showDeploy();
+  setTimeout(() => document.getElementById('promptInput')?.focus(), 80);
 }
 
 async function mxLaunch() {
@@ -2711,15 +2777,8 @@ function mxRender(run) {
 }
 
 function mxBackToLaunch() {
-  mx.runId = null;
-  mx._rendersSig = '';
-  mx.playing = null; mx.railSig = '';
-  const sf = document.getElementById('mxStageFrame');
-  if (sf) { sf.src = 'about:blank'; sf.style.display = 'none'; }
-  const rEl = document.getElementById('mxRenders');
-  if (rEl) { rEl.style.display = 'none'; rEl.innerHTML = ''; }
-  document.getElementById('mx-arena').style.display = 'none';
-  document.getElementById('mx-launch').style.display = 'block';
+  try { sessionStorage.removeItem('mxRunId'); } catch {}
+  mxShowEmpty();
   document.getElementById('mxStart').disabled = false;
   document.getElementById('mxStart').textContent = 'Start sandboxmaxxing →';
   const btn = document.getElementById('mxStop');
