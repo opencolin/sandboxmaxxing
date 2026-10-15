@@ -34,6 +34,9 @@ const DEMO_ENABLED = process.env.DEMO_ENABLED !== "false";
 const MAX_PER_IP = 1;
 const MAX_CREATES_PER_IP_PER_HOUR = 5;
 const DEMO_DURATION_MS = 60 * 60 * 1000;
+// Agents run in demo machines too, and opencode 1.19 alone needs ~840 MB: at 1 GB
+// the kernel OOM-killed it. Same size as arena seats (maxx.js).
+const DEMO_MEMORY_MB = Number(process.env.MAXX_SEAT_MEMORY_MB || 2048);
 const IDLE_TIMEOUT_MINUTES = 10;
 // must be a platform-allowed preview port; 7681 (ttyd default) is rejected
 const TTYD_PORT = Number(process.env.TTYD_PORT || 8080);
@@ -287,7 +290,7 @@ const publicSession = (s) => ({
   state: s.state,
   timeoutAt: s.timeoutAt ?? null,
   cpuCores: 1,
-  memoryMb: 1024,
+  memoryMb: DEMO_MEMORY_MB,
 });
 
 async function createDemoSession(req, res) {
@@ -325,7 +328,7 @@ async function createDemoSession(req, res) {
     const session = await client.create({
       name: `demo-${crypto.randomBytes(4).toString("hex")}`,
       cpuCores: 1,
-      memoryMb: 1024,
+      memoryMb: DEMO_MEMORY_MB,
       allowInbound: true,
       allowOutbound: true,
       maxDurationMs: DEMO_DURATION_MS,
@@ -926,6 +929,10 @@ http.createServer(async (req, res) => {
       return json(res, 404, { error: "not_found" });
     }
     if (seg[0] === "api" && seg[1] === "gallery" && seg.length === 2 && req.method === "GET") return await maxx.gallery(res);
+    if (seg[0] === "api" && seg[1] === "warm" && seg.length === 2) {
+      if (req.method === "POST") return maxx.warmVisit(res);
+      if (req.method === "GET") return maxx.warmGet(res);
+    }
     if (seg[0] === "api" && seg[1] === "maxx") {
       if (req.method === "POST" && seg.length === 2) return await maxx.start(req, res);
       if (req.method === "GET" && seg.length === 2) return maxx.templates(res);

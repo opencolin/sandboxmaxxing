@@ -225,6 +225,29 @@ not remove or move one).
 project and were deliberately left alone. luxor.computer is agentcamp's main app
 (`agentcamp-mu`, ~20 brand domains): never redeploy it from here.
 
+## Warm machines and the Start path
+
+Start on Deploy never waits: it switches straight to Machines (the theater), which shows the
+first seat booting, then its terminal, while the run is requested in the background. The
+terminal (`watch` in `maxx.js`) shows the machine's boot log until the agent's tmux session
+exists, then attaches to the agent.
+
+**The warm pool.** A fresh seat costs ~4s to create, ~8s to install tmux and, for opencode,
+~15s to upgrade it (measured 2026-10-15). So every page load POSTs `/api/warm`, and the broker
+keeps `MAXX_WARM_POOL` machines (default 2; `0` turns it off) booted with that done;
+`launchSeat` takes one when ready (logged `warm_taken`) and starts replacing it. With a warm
+machine, Start → live terminal measured **2.4s**. The pool only fills while people are on the
+site — with no visit for 15 min it drains to zero — and machines retire at 25 min old, since
+they live 60 min and a run needs 30. It's persisted in `broker/warm-pool.json` (gitignored)
+so a restart doesn't strand machines. `GET /api/warm` is the status; the homepage shows it
+bottom-left ("warm machines: 2 ready / 2" — click it for per-machine boot times, counters and
+the last error).
+
+**Seats are 2 GB now (`MAXX_SEAT_MEMORY_MB`).** opencode 1.19 reaches ~840–960 MB resident, and
+on the old 1 GB seats the kernel OOM-killed it seconds into every run — the terminal just said
+`[exited]`, and an upstream 503 in its log was a red herring. Demo machines use the same size.
+If an agent dies early, check `sudo dmesg | grep -i "out of memory"` on the seat first.
+
 ## Rebuild runbook (the thing you will actually need)
 
 The host dies periodically and the session scratchpad is wiped between sessions, so this is

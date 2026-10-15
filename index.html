@@ -589,6 +589,21 @@
   .mx-say button:disabled { opacity: .5; cursor: default; }
   .mx-say-hint { font-family: var(--mono); font-size: 10.5px; color: #6a6a6a; padding: 0 12px 10px; }
   .mx-rail { display: flex; flex-direction: column; gap: 9px; max-height: 620px; overflow-y: auto; padding-right: 4px; }
+  .warm-status { position: fixed; left: 16px; bottom: 16px; z-index: 40; display: flex; flex-direction: column; align-items: flex-start; gap: 6px;
+                 max-width: min(360px, calc(100vw - 32px)); padding: 8px 12px; border: 1px solid #1e1e1e; border-radius: 10px;
+                 background: rgba(10, 10, 10, .88); backdrop-filter: blur(6px); color: #8f8f8f; font: 11.5px/1.5 var(--mono); text-align: left; cursor: pointer; }
+  .warm-line { display: inline-flex; align-items: center; gap: 8px; }
+  .warm-dot { width: 7px; height: 7px; border-radius: 50%; background: #4a4a4a; flex: none; }
+  .warm-status[data-s="ready"] .warm-dot { background: #3ecf6a; }
+  .warm-status[data-s="booting"] .warm-dot { background: var(--sand); animation: mxBoot 1.1s ease-in-out infinite; }
+  .warm-status[data-s="error"] .warm-dot { background: #e06c6c; }
+  .warm-detail { display: none; white-space: pre-wrap; color: #6a6a6a; }
+  .warm-status.open .warm-detail { display: block; }
+  .mx-boot { display: inline-flex; align-items: center; gap: 10px; color: #c4c4c4; font-size: 13.5px; }
+  .mx-boot-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--sand); animation: mxBoot 1.1s ease-in-out infinite; }
+  .mx-boot-step { color: #6a6a6a; }
+  @keyframes mxBoot { 0%, 100% { opacity: .25; transform: scale(.8); } 50% { opacity: 1; transform: scale(1); } }
+  @media (prefers-reduced-motion: reduce) { .mx-boot-dot { animation: none; } }
   .mx-rail-empty { color: #6a6a6a; font-size: 13px; padding: 14px 16px; border: 1px dashed #222; border-radius: 12px; }
   .mx-rail-head { font-family: var(--mono); font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: #6a6a6a; margin-bottom: 2px; }
   .mx-side { display: flex; gap: 10px; align-items: flex-start; padding: 8px; border: 1px solid transparent; border-radius: 11px; cursor: pointer; transition: background .12s, border-color .12s; text-align: left; background: none; font: inherit; width: 100%; }
@@ -711,6 +726,11 @@
 
 <!-- ============ HERO ============ -->
 <main id="view-hero">
+  <!-- Debug: the broker's warm-machine pool (see /api/warm). Fixed, homepage only. -->
+  <button type="button" class="warm-status" id="warmStatus" onclick="this.classList.toggle('open')" aria-label="Warm machine status">
+    <span class="warm-line"><span class="warm-dot"></span><span id="warmText">machines: checking…</span></span>
+    <span class="warm-detail" id="warmDetail"></span>
+  </button>
   <div class="hero-top">
   <div class="hero-canvas-wrap">
     <div class="hero-glow"></div>
@@ -945,7 +965,7 @@ build a habit tracker with streaks</pre>
       <div class="prompt-actions">
         <button class="chip fullauto-chip sel" onclick="toggleFullAuto()"
           title="Skip every approval prompt inside the sandbox (claude --dangerously-skip-permissions, codex --dangerously-bypass-approvals-and-sandbox, opencode --auto)">Full-Auto · on</button>
-        <button class="btn btn-primary" id="buildBtn" onclick="deployBuild(this)" disabled>Build</button>
+        <button class="btn btn-primary" id="buildBtn" onclick="deployBuild(this)">Start →</button>
       </div>
     <p class="prompt-foot">You're <em>one prompt away</em>.</p>
   </section>
@@ -1118,7 +1138,7 @@ tenki sandbox ssh --session my-box</div>
         <div class="mx-say-hint" id="mxSayHint" style="display:none;">Sent straight into the agent's session — you can also click the terminal and type directly.</div>
       </div>
       <div>
-        <div class="mx-rail-head">Agents</div>
+        <div class="mx-rail-head">Machines</div>
         <div class="mx-rail" id="mxRail"></div>
       </div>
     </div>
@@ -1197,7 +1217,7 @@ function showMaxx() {
   window.scrollTo(0, 0);
   if (location.hash !== '#maxx') history.replaceState(null, '', '#maxx');
   mxInit();
-  if (!mx.runId) mxRestoreOrEmpty();
+  if (!mx.runId && !mx.starting) mxRestoreOrEmpty();
 }
 // deep links are dispatched at the end of the script, once all view state exists
 function growPrompt() {
@@ -1452,26 +1472,21 @@ function dpSync() {
 function deployBuild(btn) {
   return dpMaxxMode() ? dpLaunch(btn) : buildInSandbox(btn);
 }
-async function dpLaunch(btn) {
+// Start never waits and never changes: it goes straight to Machines, which shows
+// the machine booting while the run is requested; a failure is reported there.
+async function dpLaunch() {
+  if (mx.starting) return;                  // already requesting one — the screen shows it
   const ta = document.getElementById('promptInput');
   const prompt = ta.value.trim() || ta.getAttribute('placeholder');
-  const orig = btn.textContent;
-  btn.disabled = true; btn.textContent = 'Spinning up sandboxes…';
-  const note = document.getElementById('dpScaleNote');
+  const body = { prompt, mode: dp.mode, harness: buildAgent, provider: dp.provider };
+  if (dp.teams === 4) body.teams = 4;
+  else { body.teams = dp.teams; body.size = dp.size; }
+  mxShowStarting(prompt);
   try {
-    const body = { prompt, mode: dp.mode, harness: buildAgent, provider: dp.provider };
-    if (dp.teams === 4) body.teams = 4;
-    else { body.teams = dp.teams; body.size = dp.size; }
     const { ok, data } = await mxBeginRun(body, prompt);
-    if (!ok) {
-      note.style.display = 'block';
-      note.innerHTML = '<b style="color:#e0906c;">' + mxCapacityError(data) + '</b>';
-      btn.disabled = false; btn.textContent = orig;
-    }
+    if (!ok) mxStartFailed(mxCapacityError(data));
   } catch {
-    note.style.display = 'block';
-    note.innerHTML = '<b style="color:#e0906c;">Network error starting the run.</b>';
-    btn.disabled = false; btn.textContent = orig;
+    mxStartFailed('Network error starting the run.');
   }
 }
 
@@ -2381,8 +2396,9 @@ async function mxBeginRun(body, promptText) {
 // Put a run on the Machines page (theater/grid) and poll it. Used for a run just
 // started and for one resumed after a reload — the id is kept in sessionStorage.
 function mxOpenRun(data, promptText, startedAt) {
+  mx.starting = false;
   mx.runId = data.id; mx.started = startedAt || Date.now(); mx._rendersSig = '';
-  mx.playing = null; mx.railSig = '';
+  mx.playing = null; mx.railSig = ''; mx.openKey = mx.opening = mx.failedKey = null; mx.lastRun = null;
   try { sessionStorage.setItem('mxRunId', data.id); } catch {}
   showMaxx();                    // ensure the arena view is on screen (deep path too)
   document.getElementById('mx-launch').style.display = 'none';
@@ -2399,6 +2415,9 @@ function mxOpenRun(data, promptText, startedAt) {
   clearInterval(mx.poll);
   mx.poll = setInterval(mxTick, 3000);
   mxTick();
+  // A warm machine is up within a second or two of Start; poll quickly at first so
+  // its terminal opens then, not at the next 3s tick.
+  for (const ms of [600, 1200, 1800, 2400]) setTimeout(() => { if (mx.runId === data.id) mxTick(); }, ms);
 }
 
 // The stage's resting state: no terminal, the "pick a seat" prompt.
@@ -2421,6 +2440,7 @@ function mxStageReset(emptyHtml) {
 function mxShowEmpty() {
   clearInterval(mx.poll);
   mx.runId = null; mx.playing = null; mx.railSig = ''; mx._rendersSig = '';
+  mx.openKey = mx.opening = mx.failedKey = null; mx.lastRun = null;
   document.getElementById('mx-launch').style.display = 'none';
   document.getElementById('mx-arena').style.display = 'block';
   document.getElementById('mxRunLabel').textContent = 'Machines';
@@ -2437,6 +2457,31 @@ function mxShowEmpty() {
   mxStageReset('<span>Start one with <b style="color:var(--fg);font-weight:500;">New Machine</b> — every agent gets its own machine with a live terminal.</span>');
 }
 
+// Start was pressed: show the new machine booting right away, before the broker
+// has answered. mxOpenRun replaces this with the real run.
+function mxShowStarting(promptText) {
+  mx.starting = true;
+  try { sessionStorage.removeItem('mxRunId'); } catch {}
+  showMaxx();
+  mxShowEmpty();
+  document.getElementById('mxRunLabel').textContent = 'Machines · starting';
+  document.getElementById('mxRunPrompt').textContent = promptText;
+  document.getElementById('mxRail').innerHTML = '<div class="mx-rail-empty">booting…</div>';
+  document.getElementById('mxStageTitle').textContent = 'New machine';
+  document.getElementById('mxStageSub').textContent = 'booting…';
+  mxBootStep('Creating the machine…');
+}
+function mxStartFailed(msg) {
+  mx.starting = false;
+  document.getElementById('mxRunLabel').textContent = 'Machines';
+  document.getElementById('mxRail').innerHTML = '<div class="mx-rail-empty">No machines yet.</div>';
+  document.getElementById('mxStageTitle').textContent = 'Couldn’t start';
+  document.getElementById('mxStageSub').textContent = '';
+  const empty = document.getElementById('mxStageEmpty');
+  empty.style.display = 'flex';
+  empty.innerHTML = '<span style="color:#e0906c;">' + msg + '</span><span>Try again with New Machine.</span>';
+}
+
 // Opening Machines with no run in memory: resume this tab's last run if the broker
 // still has it, otherwise show the empty theater.
 async function mxRestoreOrEmpty() {
@@ -2447,7 +2492,7 @@ async function mxRestoreOrEmpty() {
   try {
     const r = await fetch(`${MX_API}/${id}`);
     const run = r.ok ? await r.json() : null;
-    if (mx.runId) return;                       // a run started meanwhile; leave it
+    if (mx.runId || mx.starting) return;        // a run started meanwhile; leave it
     if (run && run.state !== 'released') return mxOpenRun(run, run.prompt, run.createdAt);
   } catch {}
   try { sessionStorage.removeItem('mxRunId'); } catch {}
@@ -2566,11 +2611,14 @@ function mxRailRender(run) {
       const key = mxSeatKey(t.tag, seat.role);
       const live = !terminal && (seat.state === 'running' || seat.state === 'RUNNING');
       const st = terminal && seat.state !== 'published' ? 'stopped' : (seat.state || 'pending');
+      // A seat whose machine is still booting can be put on the stage too — it shows
+      // the boot, then the agent. Only failed seats and finished runs stay disabled.
+      const pickable = !terminal && st !== 'failed';
       const dotColor = { running: '#3ecf6a', RUNNING: '#3ecf6a', published: 'var(--sand)', shipped: 'var(--sand)', failed: '#e06c6c' }[st] || '#6a6a6a';
       const on = mx.playing === key;
       cards.push(
-        `<button class="mx-side${on ? ' on' : ''}" onclick="mxPlay('${t.tag}','${seat.role}',this)"${live ? '' : ' disabled style="opacity:.5;cursor:default;"'}>
-           <span class="mx-side-thumb"><code>${(seat.role || '').slice(0, 22)}<br>$ ${live ? 'working…' : st}</code></span>
+        `<button class="mx-side${on ? ' on' : ''}" onclick="mxPlay('${t.tag}','${seat.role}',this)"${pickable ? '' : ' disabled style="opacity:.5;cursor:default;"'}>
+           <span class="mx-side-thumb"><code>${(seat.role || '').slice(0, 22)}<br>$ ${live ? 'working…' : st === 'pending' ? 'booting…' : st}</code></span>
            <span class="mx-side-meta">
              <span class="mx-side-role">${seat.role}</span>
              <span class="mx-side-model">${seat.model || ''}</span>
@@ -2580,10 +2628,9 @@ function mxRailRender(run) {
     }
   }
   rail.innerHTML = cards.join('') || '<span class="mono" style="font-size:12px;color:#6a6a6a;">no agents yet</span>';
-  // Open on the first live agent rather than an empty stage. Only while nothing is
-  // playing, so a viewer's own pick is never overridden; if no seat is live yet, a
-  // later poll re-renders once one is. Clicking the card takes the same path a
-  // viewer's click does.
+  // Open on the first agent straight away — booting or not — rather than an empty
+  // stage. Only while nothing is playing, so a viewer's own pick is never
+  // overridden. Clicking the card takes the same path a viewer's click does.
   if (!mx.playing) {
     const first = rail.querySelector('.mx-side:not([disabled])');
     if (first) first.click();
@@ -2645,44 +2692,73 @@ async function mxSay() {
   } catch { btn.textContent = 'retry'; setTimeout(() => { btn.textContent = orig; }, 1600); }
   finally { btn.disabled = false; input.focus(); }
 }
-// Drop the chosen seat's live terminal onto the stage (starts ttyd on demand).
-async function mxPlay(team, role, btn) {
+// Put a seat on the stage at once. Until its machine is up the stage shows it
+// booting; then its terminal opens (ttyd, started on demand), and that terminal
+// shows the boot log until the agent itself starts (see the broker's watch).
+function mxPlay(team, role, btn) {
   if (!mx.runId) return;
   const key = mxSeatKey(team, role);
-  const title = document.getElementById('mxStageTitle');
-  const sub = document.getElementById('mxStageSub');
-  const empty = document.getElementById('mxStageEmpty');
+  if (btn) { [...document.querySelectorAll('.mx-side')].forEach(c => c.classList.remove('on')); btn.classList.add('on'); }
+  if (mx.playing === key && (mx.openKey === key || mx.opening === key)) return;   // already on stage
+  mx.playing = key; mx.openKey = null; mx.failedKey = null;
+  document.getElementById('mxStageTitle').textContent = role;
+  document.getElementById('mxStageSub').textContent = 'booting…';
   const frame = document.getElementById('mxStageFrame');
-  const open = document.getElementById('mxStageOpen');
-  title.textContent = role;
-  sub.textContent = 'connecting…';
-  empty.style.display = 'flex'; empty.innerHTML = '<span>starting terminal…</span>';
-  frame.style.display = 'none'; open.style.display = 'none';
+  frame.src = 'about:blank'; frame.style.display = 'none';
+  document.getElementById('mxStageOpen').style.display = 'none';
   document.getElementById('mxSayRow').style.display = 'none';
   document.getElementById('mxSayHint').style.display = 'none';
-  if (btn) { [...document.querySelectorAll('.mx-side')].forEach(c => c.classList.remove('on')); btn.classList.add('on'); }
-  mx.playing = key;
+  mxBootStep('Creating the machine…');
+  mxEnsureTerminal();
+}
+function mxBootStep(step) {
+  const empty = document.getElementById('mxStageEmpty');
+  empty.style.display = 'flex';
+  empty.innerHTML = `<span class="mx-boot"><span class="mx-boot-dot"></span>Booting machine</span><span class="mx-boot-step">${step}</span>`;
+}
+// Open the playing seat's terminal once its machine is running. Called on select
+// and after every poll, so it fires the moment the seat is ready.
+async function mxEnsureTerminal() {
+  const key = mx.playing;
+  if (!key || !mx.runId || !mx.lastRun || mx.openKey === key || mx.opening === key || mx.failedKey === key) return;
+  const [team, role] = key.split('/');
+  const seat = ((mx.lastRun.teams || []).find(t => t.tag === team)?.seats || []).find(s => s.role === role);
+  if (!seat) return;
+  const empty = document.getElementById('mxStageEmpty');
+  const sub = document.getElementById('mxStageSub');
+  if (seat.state === 'failed') {
+    mx.failedKey = key; sub.textContent = '';
+    empty.style.display = 'flex'; empty.innerHTML = '<span style="color:#e0906c;">This agent’s machine failed to start.</span>';
+    return;
+  }
+  if (!['running', 'RUNNING', 'published', 'shipped'].includes(seat.state)) return mxBootStep('Creating the machine…');
+  mx.opening = key;
+  mxBootStep('Machine up — opening its terminal…');
   try {
     const r = await fetch(`${MX_API}/${mx.runId}/watch`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ team, role }) });
-    const d = await r.json();
-    if (!r.ok || !d.url) {
+    const d = await r.json().catch(() => ({}));
+    if (mx.playing !== key) return;                       // the viewer moved on
+    if (r.ok && d.url) {
+      mx.openKey = key;
+      const frame = document.getElementById('mxStageFrame');
+      frame.src = d.url; frame.style.display = 'block';
+      empty.style.display = 'none';
+      const open = document.getElementById('mxStageOpen'); open.href = d.url; open.style.display = 'inline';
+      sub.textContent = `TEAM ${team} · live`;
+      document.getElementById('mxSayRow').style.display = 'flex';
+      document.getElementById('mxSayHint').style.display = 'block';
+    } else if (r.status === 404 || r.status === 409) {
+      mxBootStep('Creating the machine…');                // not up yet — the next poll retries
+    } else {
+      mx.failedKey = key; sub.textContent = '';           // don't hammer; a click retries
+      empty.style.display = 'flex';
       empty.innerHTML = '<span style="color:#e0906c;">' +
-        (d.error === 'preview_limit' ? 'At the preview-URL cap — close another terminal first.'
-         : d.error === 'not_running' ? 'That agent is no longer running.'
-         : 'Could not open that terminal.') + '</span>';
-      sub.textContent = '';
-      return;
+        (d.error === 'preview_limit' ? 'At the preview-URL cap — close another terminal first.' : 'Could not open that terminal.') + '</span>';
     }
-    frame.src = d.url;
-    frame.style.display = 'block';
-    empty.style.display = 'none';
-    open.href = d.url; open.style.display = 'inline';
-    sub.textContent = `TEAM ${team} · live`;
-    document.getElementById('mxSayRow').style.display = 'flex';
-    document.getElementById('mxSayHint').style.display = 'block';
   } catch {
-    empty.innerHTML = '<span style="color:#e0906c;">Network error opening that terminal.</span>';
-    sub.textContent = '';
+    if (mx.playing === key) mxBootStep('Reconnecting…');  // network blip — the next poll retries
+  } finally {
+    if (mx.opening === key) mx.opening = null;
   }
 }
 function mxRender(run) {
@@ -2743,7 +2819,8 @@ function mxRender(run) {
         : '');
   }
 
-  if (mx.view === 'theater') mxRailRender(run);
+  mx.lastRun = run;
+  if (mx.view === 'theater') { mxRailRender(run); mxEnsureTerminal(); }
 
   // teams
   const wrap = document.getElementById('mxTeams');
@@ -2810,6 +2887,34 @@ async function mxReleaseAll(rid) {
   try { await fetch(`${MX_API}/${rid}?all=1`, { method: 'DELETE' }); } catch {}
   mxBackToLaunch();
 }
+
+/* Warm machines: landing on the site asks the broker to keep a couple of machines
+   booted and provisioned, so Start puts a live agent on screen at once. The
+   homepage shows the pool's state for debugging; click it for details. */
+const WARM_API = '/api/warm';
+function warmPing() { fetch(WARM_API, { method: 'POST' }).then(r => r.json()).then(warmShow).catch(() => {}); }
+function warmShow(w) {
+  const el = document.getElementById('warmStatus');
+  if (!el || !w) return;
+  const err = w.lastError && w.lastError.secsAgo < 120;
+  el.dataset.s = err ? 'error' : w.ready ? 'ready' : w.booting ? 'booting' : 'idle';
+  document.getElementById('warmText').textContent = !w.target ? 'warm machines: off'
+    : `warm machines: ${w.ready} ready` + (w.booting ? ` · ${w.booting} booting` : '') + ` / ${w.target}`;
+  const ago = s => s == null ? '—' : s < 90 ? s + 's ago' : Math.round(s / 60) + 'm ago';
+  document.getElementById('warmDetail').textContent = [
+    ...w.machines.map((m, i) => `#${i + 1} ${m.state}${m.bootSecs != null ? ` (booted in ${m.bootSecs}s)` : ''} · age ${m.ageSecs}s`),
+    `last visit ${ago(w.lastVisitSecsAgo)} · last taken ${w.lastTake ? ago(w.lastTake.secsAgo) : '—'}`,
+    `created ${w.stats.created} · taken ${w.stats.taken} · retired ${w.stats.retired} · failed ${w.stats.failed}`,
+    ...(w.lastError ? [`last error ${ago(w.lastError.secsAgo)}: ${w.lastError.message}`] : []),
+  ].join('\n');
+}
+function warmPoll() {
+  if (document.hidden || getComputedStyle(heroEl).display === 'none') return;
+  fetch(WARM_API).then(r => r.json()).then(warmShow).catch(() => {});
+}
+warmPing();
+setInterval(() => { if (!document.hidden) warmPing(); }, 4 * 60_000);   // still here: keep the pool warm
+setInterval(warmPoll, 4000);
 
 // initialize the deploy-page scale selectors to their default (single-build) state
 dpSync();

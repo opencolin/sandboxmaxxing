@@ -240,11 +240,144 @@ export function createMaxx({ client, tracked, saveState, indexRelay, log, json, 
     await session.exec("bash", { args: ["-lc", start], timeoutMs: 20_000 });
   }
 
+  // ---- Warm pool -------------------------------------------------------------
+  // A fresh seat spends ~4s being created, ~8s installing tmux and, for opencode,
+  // ~15s upgrading it before its agent can start (measured 2026-10-15). Visitors
+  // landing on the site top up a small pool of machines with all of that done;
+  // launchSeat takes from it, so Start puts a live agent on screen at once. The
+  // pool fills only while people are on the site and drains when they leave, so
+  // its cost is bounded by MAXX_WARM_POOL machines (default 2; 0 turns it off).
+  const WARM_TARGET = Math.max(0, Number(process.env.MAXX_WARM_POOL ?? 2));
+  // opencode 1.19 alone reaches ~840 MB resident; on the old 1 GB seats the kernel
+  // OOM-killed it seconds into a run, so its terminal just said "[exited]".
+  const SEAT_MEMORY_MB = Number(process.env.MAXX_SEAT_MEMORY_MB || 2048);
+  const WARM_LIFETIME_MS = 60 * 60_000;   // the machine's platform max duration
+  const WARM_MAX_AGE_MS = 25 * 60_000;    // retire before a run (30 min) could outlive it
+  const WARM_IDLE_MS = 15 * 60_000;       // no visitor for this long → let the pool drain
+  const WARM_FILE = path.join(DIR, "warm-pool.json");
+  const warm = { pool: [], lastVisit: 0, lastError: null, lastErrorAt: 0, lastTake: null,
+                 stats: { created: 0, taken: 0, retired: 0, failed: 0 } };
+  try { warm.pool = JSON.parse(fs.readFileSync(WARM_FILE, "utf8")).filter((e) => e.id); } catch {}
+  // Machines warmed at a different size than seats now get: retire them.
+  for (const e of warm.pool.filter((e) => e.memoryMb !== SEAT_MEMORY_MB)) terminateSession(e.id);
+  warm.pool = warm.pool.filter((e) => e.memoryMb === SEAT_MEMORY_MB);
+  if (warm.pool.length) warm.lastVisit = Date.now();   // a restart shouldn't drain machines already paid for
+  const saveWarm = () => { try { fs.writeFileSync(WARM_FILE, JSON.stringify(warm.pool)); } catch {} };
+  const WARM_PREP_B64 = Buffer.from([
+    "#!/bin/bash",
+    "for i in 1 2 3 4; do command -v tmux >/dev/null 2>&1 && break; sudo apt-get update >>/tmp/tmux-install.log 2>&1; sudo apt-get install -y tmux >>/tmp/tmux-install.log 2>&1 || sleep $((i * 5)); done",
+    opencodeUpgrade,
+    "command -v tmux >/dev/null 2>&1 && touch /tmp/warm-ready || touch /tmp/warm-failed",
+    "",
+  ].join("\n")).toString("base64");
+
+  async function warmOne() {
+    const e = { id: null, state: "creating", createdAt: Date.now(), readyAt: null, memoryMb: SEAT_MEMORY_MB };
+    warm.pool.push(e);
+    try {
+      const s = await client.create({
+        name: `maxx-warm-${crypto.randomBytes(2).toString("hex")}`,
+        cpuCores: 1, memoryMb: SEAT_MEMORY_MB, allowInbound: true, allowOutbound: true,
+        maxDurationMs: WARM_LIFETIME_MS, idleTimeoutMinutes: 0,
+        metadata: { demo: "true", source: "maxx-warm" }, waitReady: true,
+      });
+      e.id = s.id; e.state = "booting"; warm.stats.created++; saveWarm();
+      await s.exec("bash", { args: ["-lc",
+        `echo ${WARM_PREP_B64} | base64 -d > /tmp/warm-prep.sh; nohup bash /tmp/warm-prep.sh >/tmp/warm-prep.log 2>&1 </dev/null & echo STARTED`],
+        timeoutMs: 20_000 });
+      log("warm_created", { id: e.id });
+    } catch (err) {
+      warm.pool = warm.pool.filter((x) => x !== e); saveWarm();
+      warm.stats.failed++; warm.lastError = err.message; warm.lastErrorAt = Date.now();
+      log("warm_create_failed", { message: err.message });
+      if (e.id) terminateSession(e.id);
+    }
+  }
+  function warmFill() {
+    if (!WARM_TARGET || Date.now() - warm.lastVisit > WARM_IDLE_MS) return;
+    if (Date.now() - warm.lastErrorAt < 60_000) return;          // back off after a failed create
+    while (warm.pool.length < WARM_TARGET) warmOne();
+  }
+  // Take a ready machine for a seat, and start replacing it for the next visitor.
+  function takeWarm() {
+    const i = warm.pool.findIndex((e) => e.state === "ready" && Date.now() - e.createdAt < WARM_MAX_AGE_MS);
+    if (i < 0) return null;
+    const [e] = warm.pool.splice(i, 1); saveWarm();
+    warm.stats.taken++; warm.lastTake = { at: Date.now(), ageMs: Date.now() - e.createdAt };
+    setTimeout(warmFill, 0);
+    return e.id;
+  }
+  // Every 5s: mark booted machines ready, retire old ones, drain when nobody's here.
+  let warmBusy = false;
+  async function warmTick() {
+    if (warmBusy) return; warmBusy = true;
+    try {
+      const idle = Date.now() - warm.lastVisit > WARM_IDLE_MS;
+      for (const e of [...warm.pool]) {
+        if (!e.id) continue;                                     // still being created
+        if (idle || Date.now() - e.createdAt > WARM_MAX_AGE_MS) {
+          warm.pool = warm.pool.filter((x) => x !== e); saveWarm();
+          warm.stats.retired++; log("warm_retired", { id: e.id, idle });
+          terminateSession(e.id);
+          continue;
+        }
+        if (e.state !== "booting") continue;
+        try {
+          const s = await client.get(e.id);
+          if (s.state !== "RUNNING") throw new Error("machine " + s.state);
+          const r = await s.exec("bash", { args: ["-lc", "test -f /tmp/warm-ready && echo READY; test -f /tmp/warm-failed && echo FAILED; true"], timeoutMs: 15_000 });
+          const out = new TextDecoder().decode(r.stdout || new Uint8Array());
+          if (out.includes("READY")) { e.state = "ready"; e.readyAt = Date.now(); saveWarm(); log("warm_ready", { id: e.id, secs: Math.round((e.readyAt - e.createdAt) / 1000) }); }
+          else if (out.includes("FAILED")) throw new Error("prep failed (tmux would not install)");
+        } catch (err) {
+          warm.pool = warm.pool.filter((x) => x !== e); saveWarm();
+          warm.stats.failed++; warm.lastError = err.message; warm.lastErrorAt = Date.now();
+          log("warm_check_failed", { id: e.id, message: err.message });
+          terminateSession(e.id);
+        }
+      }
+      warmFill();
+    } finally { warmBusy = false; }
+  }
+  setInterval(() => warmTick().catch((e) => log("warm_tick_failed", { message: e.message })), 5_000);
+
+  function warmStatus() {
+    const now = Date.now();
+    return {
+      target: WARM_TARGET,
+      ready: warm.pool.filter((e) => e.state === "ready").length,
+      booting: warm.pool.filter((e) => e.state === "booting" || e.state === "creating").length,
+      machines: warm.pool.map((e) => ({ state: e.state, ageSecs: Math.round((now - e.createdAt) / 1000),
+        bootSecs: e.readyAt ? Math.round((e.readyAt - e.createdAt) / 1000) : null })),
+      lastVisitSecsAgo: warm.lastVisit ? Math.round((now - warm.lastVisit) / 1000) : null,
+      lastTake: warm.lastTake ? { secsAgo: Math.round((now - warm.lastTake.at) / 1000), machineAgeSecs: Math.round(warm.lastTake.ageMs / 1000) } : null,
+      lastError: warm.lastError ? { message: warm.lastError, secsAgo: Math.round((now - warm.lastErrorAt) / 1000) } : null,
+      stats: warm.stats,
+    };
+  }
+  // POST /api/warm — a visitor landed: keep the pool topped up. Idempotent and
+  // bounded by WARM_TARGET, so repeated calls (or bots) can't add machines.
+  function warmVisit(res) {
+    warm.lastVisit = Date.now();
+    warmFill();
+    return json(res, 200, warmStatus());
+  }
+  const warmGet = (res) => json(res, 200, warmStatus());
+
   async function launchSeat(run, team, seat, isArchitect) {
     const ttl = Math.max(60_000, run.deadline - Date.now());
-    const session = await client.create({
-      name: `maxx-${team.tag}-${seat.role}-${crypto.randomBytes(2).toString("hex")}`,
-      cpuCores: 1, memoryMb: 1024, allowInbound: true, allowOutbound: true,
+    const name = `maxx-${team.tag}-${seat.role}-${crypto.randomBytes(2).toString("hex")}`;
+    // A warm machine if one is ready (tmux and opencode already installed), else a new one.
+    let session = null;
+    const warmId = takeWarm();
+    if (warmId) {
+      try { session = await client.get(warmId); if (session.state !== "RUNNING") { terminateSession(warmId); session = null; } }
+      catch { session = null; }
+      if (session) { client.updateSession(session.id, { name }).catch(() => {}); log("warm_taken", { runId: run.id, role: seat.role, id: session.id }); }
+    }
+    if (!session) session = await client.create({
+      name,
+      cpuCores: 1, memoryMb: SEAT_MEMORY_MB, allowInbound: true, allowOutbound: true,
       maxDurationMs: ttl, idleTimeoutMinutes: 0,
       metadata: { demo: "true", source: "maxx", maxx: run.id, team: team.tag, role: seat.role },
       waitReady: true,
@@ -661,6 +794,23 @@ export function createMaxx({ client, tracked, saveState, indexRelay, log, json, 
     }
   }
 
+  // What a viewer's terminal runs (see watch). `tmux has-session` also fails while
+  // tmux itself is still installing, so the loop covers the whole boot.
+  const WATCH_B64 = Buffer.from([
+    "#!/bin/bash",
+    "if ! tmux has-session -t agent 2>/dev/null; then",
+    "  printf '\\033[2m[machine booting — the agent appears here once it starts]\\033[0m\\n\\n'",
+    "  tail -q -n +1 -F /tmp/agent.log /tmp/agent-tty.log 2>/dev/null & tailpid=$!",   // -tty: the no-tmux fallback
+    "  until tmux has-session -t agent 2>/dev/null; do sleep 1; done",
+    "  kill $tailpid 2>/dev/null; clear",
+    "fi",
+    "tmux attach -t agent",
+    "printf '\\n\\033[2m[agent session ended — last of its log:]\\033[0m\\n'",
+    "tail -n 20 /tmp/agent.log 2>/dev/null",
+    "sleep 86400",
+    "",
+  ].join("\n")).toString("base64");
+
   // On-demand watch: start a ttyd tailing this seat's agent log and expose it,
   // so a preview URL is spent only on seats someone actually opens. The browser
   // never learns seat session ids — it addresses a seat by {team, role}.
@@ -677,17 +827,17 @@ export function createMaxx({ client, tracked, saveState, indexRelay, log, json, 
       const s = await client.get(seat.id);
       if (s.state !== "RUNNING") return json(res, 409, { error: "not_running", state: s.state });
       const t = crypto.randomBytes(16).toString("base64url");
-      // Attach (read-only) to the agent's tmux session, so the viewer sees the
-      // live opencode TUI. pkill -x (exact NAME) — never -f, which would match
-      // this shell's own command line and self-kill the exec.
+      // The viewer's terminal: the machine's boot log (tmux install, agent setup)
+      // until the agent's tmux session exists, then the agent itself — so a seat
+      // can be watched from the moment its machine is up, instead of showing
+      // "not attached" until the agent starts. NOT `attach -r`: ttyd runs
+      // writable (-W), so a human can type straight into the agent's session.
+      // pkill -x (exact NAME) — never -f, which would match this shell's own
+      // command line and self-kill the exec.
       const start =
+        `echo ${WATCH_B64} | base64 -d > /tmp/watch.sh; ` +
         `pkill -x ttyd 2>/dev/null; sleep 0.2; ` +
-        // NOT `attach -r`: read-only was the old behaviour and meant viewers
-        // could watch but never steer. ttyd already runs writable (-W), so
-        // dropping -r lets a human type straight into the agent's session.
-        `nohup ttyd -p 8080 -W -b /t-${t} bash -lc ` +
-        `'tmux attach -t agent 2>/dev/null || { echo; echo "  agent not attached — the run is still starting or has finished."; sleep 4; }' ` +
-        `>/tmp/ttyd.log 2>&1 </dev/null & ` +
+        `nohup ttyd -p 8080 -W -b /t-${t} bash /tmp/watch.sh >/tmp/ttyd.log 2>&1 </dev/null & ` +
         `sleep 0.4; curl -sf -o /dev/null http://127.0.0.1:8080/t-${t}/ && echo OK`;
       await s.exec("bash", { args: ["-lc", start], timeoutMs: 15_000 });
       const ttl = Math.max(60_000, r.deadline - Date.now());
@@ -852,5 +1002,5 @@ export function createMaxx({ client, tracked, saveState, indexRelay, log, json, 
     }
   }
 
-  return { start, get, stop, templates, watch, say, pick, notifyExpose, sweep, gallery };
+  return { start, get, stop, templates, watch, say, pick, notifyExpose, sweep, gallery, warmVisit, warmGet };
 }
