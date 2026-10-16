@@ -13,7 +13,7 @@ mid-run, pick the better build, and every team iterates on it.
 | **Stable URL** | https://sandboxmaxxing--swc27h.us.sb.tenki.sh ✅ serving |
 | **Domain** | https://sandboxmaxxing.com ✅ serving (Vercel proxy → the stable URL) |
 | **Luxor domain** | https://luxor.sh ✅ serving the same page in the Luxor brand (same Vercel project) |
-| **Host sandbox** | `01a11f62-ab7e-7184-91d0-918132ceb804` (`tenki-redesign-host`, sticky, 2c/2048M) |
+| **Host sandbox** | `01a145be-3f33-7a30-bd83-6f680a231390` (`sandboxmaxxing-host`, sticky, 2c/4096M/10G) — rebuilt 2026-10-16; the old `01a11f62-…` (`tenki-redesign-host`) is paused, its disk read-only |
 | **Sticky preview URL** | id `01a11f62-ac2c-74d6-8527-b6b24e6076e1`, slug `sandboxmaxxing` |
 | **Workspace suffix** | `swc27h` (was `irtbn5` — it changed, which is why the domain broke) |
 | **Repo** | https://github.com/opencolin/sandboxmaxxing |
@@ -84,6 +84,13 @@ Kimi-K3 TTFB measured **1.5–3.6s** here, far below the 149.9s that once forced
 
 2. **The host keeps dying** — four times now. Once was workspace balance; the others are
    unexplained. Treat rebuild as routine (~3 min, below) and consider automating it.
+
+   **Fifth death, 2026-10-15 ~21:30 UTC: the disk went read-only.** The site 502'd for ~20h.
+   The host itself was up, but `/` was mounted `emergency_ro` (the kernel stopped writes, which
+   usually means a disk error), so systemd couldn't open `broker.log` for the service's output
+   and the broker crash-looped with `status=209/STDOUT` (31,782 restarts). Spot it with
+   `grep " / " /proc/mounts` or any write failing with "Read-only file system". Don't try to
+   remount a disk in that state — copy the state files off (it's still readable) and rebuild.
 
    **But check it isn't Tenki first.** On 2026-10-12 at 19:25 UTC the host went dark for ~6
    minutes: the site timed out, `exec` returned 502, metrics were "unavailable", yet the session
@@ -255,8 +262,13 @@ the source of truth. ~3 minutes.
 
 ```bash
 # 1. host
-tenki sandbox create --name tenki-redesign-host --cpu 2 --memory-mb 2048 --sticky \
+tenki sandbox create --name sandboxmaxxing-host --cpu 2 --memory-mb 4096 --disk-size-gb 10 --sticky \
   --allow-inbound --allow-outbound --pause-retention 720h --no-wait
+
+# 1b. if the old host's disk is still readable, copy the broker's state off it first
+#     (tracked sandboxes, run history, the shipped wall, the warm pool) and push it in step 3:
+#     state.json maxx-state.json gallery.json warm-pool.json broker.log — e.g.
+#     tenki sandbox exec --session $OLD -- bash -lc 'base64 -w0 /home/tenki/broker/state.json' | base64 -d > state.json
 
 # 2. stable URL — REUSE the existing one if it still exists (preview-url list).
 #    If it is gone, create it; the workspace suffix may change, which breaks the domain.
