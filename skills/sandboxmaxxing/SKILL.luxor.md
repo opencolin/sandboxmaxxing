@@ -10,7 +10,7 @@ Linux computer — a Tenki microVM on the user's Tenki account, with the user's 
 serves its result on a live preview URL. **You** judge the builds, keep the winner, and the rest
 are torn down.
 
-From [luxor.sh](https://luxor.sh). The scripts keep their engine's names — `arena.sh`, the
+From [tenki.monster](https://tenki.monster). The scripts keep their engine's names — `arena.sh`, the
 `.sandboxmaxxing/` state folder, `smx-` sandbox names — so expect those below.
 
 The driver is `scripts/arena.sh` next to this file. Every command below assumes
@@ -23,9 +23,9 @@ If this file isn't already in a skills directory, install the skill — three fi
 ```bash
 D=~/.claude/skills/luxor-swarm       # Codex or another agent: any directory you like
 mkdir -p "$D/scripts"
-curl -fsSL https://luxor.sh/skill.md                 -o "$D/SKILL.md"
-curl -fsSL https://luxor.sh/skill/arena.sh           -o "$D/scripts/arena.sh"
-curl -fsSL https://luxor.sh/skill/inject-provider.sh -o "$D/scripts/inject-provider.sh"
+curl -fsSL https://tenki.monster/skill.md                 -o "$D/SKILL.md"
+curl -fsSL https://tenki.monster/skill/arena.sh           -o "$D/scripts/arena.sh"
+curl -fsSL https://tenki.monster/skill/inject-provider.sh -o "$D/scripts/inject-provider.sh"
 chmod +x "$D"/scripts/*.sh
 S="$D/scripts/arena.sh"
 ```

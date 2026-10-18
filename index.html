@@ -5,12 +5,12 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ixio — Agent Native Infrastructure</title>
 <script>
-/* Brand by domain. luxor.sh (or ?brand=luxor, for previews) wears Luxor's look, set here
+/* Brand by domain. tenki.monster (or ?brand=luxor, for previews) wears Luxor's look, set here
    before anything paints so the ixio brand never flashes. Everything else is shared: one
    page, one broker, every feature on both domains. */
 (function () {
   var q = new URLSearchParams(location.search).get('brand');
-  if (!(/(^|\.)luxor\.sh$/.test(location.hostname) || q === 'luxor')) return;
+  if (!(/(^|\.)tenki\.monster$/.test(location.hostname) || q === 'luxor')) return;
   document.documentElement.setAttribute('data-brand', 'luxor');
   document.title = 'Luxor — Agent Native Infrastructure';
   var f = document.createElement('link'); f.rel = 'stylesheet';
@@ -639,7 +639,7 @@
   .mx-render-frame { width: 100%; height: 440px; border: 0; display: block; background: #000; }
   .mx-render-empty { height: 440px; display: flex; align-items: center; justify-content: center; color: #5a5a5a; font-family: var(--mono); font-size: 12px; }
 
-  /* ================= Luxor (luxor.sh) =================
+  /* ================= Luxor (tenki.monster) =================
      Switched on by the <head> script. Drawn after luxor.tech and agentcamp's luxor theme
      (web/public/themes.css): black, Inter, Geist Mono, hairline panes, and ONE gold, used the
      way luxor.tech uses it — eyebrows, focus, the mark, the active control — never as a
@@ -701,7 +701,7 @@
     <div class="brand-mark" aria-hidden="true">
       <i></i><i></i><i></i><i class="gap"></i><i></i><i class="gap"></i><i class="gap"></i><i class="gap"></i><i></i>
     </div>
-    <span class="brand-name"><span class="b-ixio">sandboxmaxxing</span><span class="b-lx">luxor.sh</span></span>
+    <span class="brand-name"><span class="b-ixio">sandboxmaxxing</span><span class="b-lx">tenki.monster</span></span>
   </div>
   <div class="nav-links">
     <a href="#" onclick="showMaxx(); return false;">Machines</a>
@@ -751,7 +751,7 @@
     </div>
     <div class="home-connect-paste">
       <div class="home-connect-bar"><span>Paste into your agent</span><button type="button" class="home-copy" onclick="copyAgentPrompt(this)">Copy</button></div>
-      <pre id="agentPrompt">Read https://<span class="b-ixio">sandboxmaxxing.com</span><span class="b-lx">luxor.sh</span>/skill.md and follow it
+      <pre id="agentPrompt">Read https://<span class="b-ixio">sandboxmaxxing.com</span><span class="b-lx">tenki.monster</span>/skill.md and follow it
 to run an arena with claude, codex and opencode for:
 build a habit tracker with streaks</pre>
     </div>

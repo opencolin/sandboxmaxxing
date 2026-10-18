@@ -1,6 +1,6 @@
 # sandboxmaxxing — handoff
 
-_Last verified: 2026-10-08._
+_Last verified: 2026-10-18._
 
 Competing teams of AI coding agents, each in its own disposable Tenki microVM. One prompt
 fans out to a team (or two rival teams); you watch any agent's terminal live, type to it
@@ -12,7 +12,7 @@ mid-run, pick the better build, and every team iterates on it.
 |---|---|
 | **Stable URL** | https://sandboxmaxxing--swc27h.us.sb.tenki.sh ✅ serving |
 | **Domain** | https://sandboxmaxxing.com ✅ serving (Vercel proxy → the stable URL) |
-| **Luxor domain** | https://luxor.sh ✅ serving the same page in the Luxor brand (same Vercel project) |
+| **Luxor domain** | https://www.tenki.monster ✅ serving the same page in the Luxor brand (same Vercel project; apex redirects to www) |
 | **Host sandbox** | `01a145be-3f33-7a30-bd83-6f680a231390` (`sandboxmaxxing-host`, sticky, 2c/4096M/10G) — rebuilt 2026-10-16; the old `01a11f62-…` (`tenki-redesign-host`) is paused, its disk read-only |
 | **Sticky preview URL** | id `01a11f62-ac2c-74d6-8527-b6b24e6076e1`, slug `sandboxmaxxing` |
 | **Workspace suffix** | `swc27h` (was `irtbn5` — it changed, which is why the domain broke) |
@@ -69,9 +69,9 @@ Kimi-K3 TTFB measured **1.5–3.6s** here, far below the 149.9s that once forced
    the workspace suffix changes, redeploy it with the new suffix — it holds **only** `vercel.json`
    (no `index.html`, or the static file wins over the rewrite). The file is
    **[`deploy/vercel.json`](deploy/vercel.json)** — deploy exactly that, replacing the suffix in
-   all three rules. The `/` and `/:path*` rules are both required because `/:path*` alone does
-   not match the bare root. The first rule sends luxor.sh's `/skill.md` to the Luxor-branded
-   skill, and must stay first, before the catch-all.
+   all four rules. The `/` and `/:path*` rules are both required because `/:path*` alone does
+   not match the bare root. The first two rules send `/skill.md` on tenki.monster and
+   www.tenki.monster to the Luxor-branded skill, and must stay first, before the catch-all.
    Deploy it with the Vercel MCP `create_deployment` tool (`target: "production"`, `files` inline,
    `project: prj_040XXuVRiTDS4BhgZ96ZDYbarAPx`, `slug: dablclub`). Note: `deploy_to_vercel` is
    **dead** — it returns "not found" — but `create_deployment` does the same job. Don't conclude
@@ -183,12 +183,12 @@ their own Tenki account and keys. It is **published at `sandboxmaxxing.com/skill
 verbatim — re-push all three whenever the skill changes, or the two drift. The arena it
 runs never touches sandboxmaxxing.com.
 
-**luxor.sh/skill.md is a Luxor-branded copy** (`name: luxor-swarm`, installs from luxor.sh into
+**tenki.monster/skill.md is a Luxor-branded copy** (`name: luxor-swarm`, installs from tenki.monster into
 `~/.claude/skills/luxor-swarm`). It is generated, never hand-edited: run
 `python3 skills/sandboxmaxxing/make-luxor-skill.py` after editing `SKILL.md` and push both. Only
-the branding differs; the scripts are shared, so luxor.sh/skill/arena.sh is the same file. The
-host serves it at `/luxor/skill.md`, and a host-conditional rewrite in the Vercel project maps
-luxor.sh's `/skill.md` onto it — markdown can't use the page's JavaScript brand switch.
+the branding differs; the scripts are shared, so tenki.monster/skill/arena.sh is the same file. The
+host serves it at `/luxor/skill.md`, and host-conditional rewrites in the Vercel project map
+tenki.monster's `/skill.md` onto it — markdown can't use the page's JavaScript brand switch.
 
 **opencode needs >= 1.18 for its free tier**, and the stock image ships 1.17.20. The
 broker (`OPENCODE_UPGRADE`, shared with maxx) and the skill both upgrade before
@@ -198,9 +198,9 @@ launching; without that, every free-model opencode launch fails.
 runs that spend the Aisa key. That's why the skill runs on the user's own keys rather
 than pointing at this API.
 
-## Two brands, one page: ixio (sandboxmaxxing.com) and Luxor (luxor.sh)
+## Two brands, one page: ixio (sandboxmaxxing.com) and Luxor (tenki.monster)
 
-`index.html` serves both. A `<head>` script sets `data-brand="luxor"` on luxor.sh (or with
+`index.html` serves both. A `<head>` script sets `data-brand="luxor"` on tenki.monster (or with
 `?brand=luxor`, for previewing on any host) **before first paint**, and every brand difference is
 CSS under `:root[data-brand="luxor"]` plus paired `.b-ixio` / `.b-lx` spans for words. One broker,
 one feature set — never fork the file.
@@ -213,7 +213,7 @@ one feature set — never fork the file.
   luxor.tech itself: black, Inter + Geist Mono, `#ffc547` gold for eyebrows, focus and active
   controls only. **No gold buttons** — every luxor.tech button, the primary included, is white at
   10% with 8px corners. The mark is Luxor's gold peaks, as luxor.tech publishes it.
-- On luxor.sh, 02 Access leads with **luxor.computer** and says "computer" for "sandbox".
+- On tenki.monster, 02 Access leads with **luxor.computer** and says "computer" for "sandbox".
 - The hero animation is the one place the brands take different layouts (`sand logo animation`
   in `index.html`): ixio keeps its 5×4 grid, whose white boxes are its mark; Luxor gets a
   six-row pyramid of boxes wired to their neighbours, split into three peaks — a tall white
@@ -221,10 +221,11 @@ one feature set — never fork the file.
   the gold mark itself pulses after the sand. Both run the same
   appear → cube → sand cycle from one `NODES` list, and the sand takes the brand's `--sand-rgb`.
 
-**luxor.sh is attached to the same Vercel project as sandboxmaxxing.com** (`sandboxmaxxing`,
-`prj_040XXuVRiTDS4BhgZ96ZDYbarAPx`), live since 2026-10-11. That project holds only the
+**tenki.monster and www.tenki.monster are attached to the same Vercel project as sandboxmaxxing.com** (`sandboxmaxxing`,
+`prj_040XXuVRiTDS4BhgZ96ZDYbarAPx`), verified 2026-10-18. That project holds only the
 `vercel.json` rewrites, so **redeploying it changes both domains** — and the page picks its brand
-from the hostname, so nothing else is needed. luxor.sh used to redirect to luxor.computer from
+from the hostname, so nothing else is needed. luxor.sh was the previous domain; the new domain
+serves the same Luxor brand. luxor.sh used to redirect to luxor.computer from
 agentcamp's project; it was removed there by hand (the Vercel MCP can add a project domain but
 not remove or move one).
 
@@ -286,7 +287,7 @@ tenki sandbox exec  --session $HOST -- bash -lc 'mkdir -p /home/tenki/site/skill
 tenki sandbox write --session $HOST --path /home/tenki/site/skill.md                  --data-file skills/sandboxmaxxing/SKILL.md
 tenki sandbox write --session $HOST --path /home/tenki/site/skill/arena.sh            --data-file skills/sandboxmaxxing/scripts/arena.sh
 tenki sandbox write --session $HOST --path /home/tenki/site/skill/inject-provider.sh  --data-file skills/sandboxmaxxing/scripts/inject-provider.sh
-python3 skills/sandboxmaxxing/make-luxor-skill.py   # luxor.sh/skill.md, rewritten to /luxor/skill.md
+python3 skills/sandboxmaxxing/make-luxor-skill.py   # tenki.monster/skill.md, rewritten to /luxor/skill.md
 tenki sandbox write --session $HOST --path /home/tenki/site/luxor/skill.md            --data-file skills/sandboxmaxxing/SKILL.luxor.md
 
 # 4. deps + service

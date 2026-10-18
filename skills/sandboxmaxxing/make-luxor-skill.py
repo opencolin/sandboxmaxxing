@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build SKILL.luxor.md — the Luxor-branded skill served at luxor.sh/skill.md — from SKILL.md.
+"""Build SKILL.luxor.md — the Luxor-branded skill served at tenki.monster/skill.md — from SKILL.md.
 
 Only the branding differs: name, description, title, intro, the install location, and the
 URLs it installs from. The instructions are shared, so they cannot drift. The engine's real
@@ -28,13 +28,13 @@ Linux computer — a Tenki microVM on the user's Tenki account, with the user's 
 serves its result on a live preview URL. **You** judge the builds, keep the winner, and the rest
 are torn down.
 
-From [luxor.sh](https://luxor.sh). The scripts keep their engine's names — `arena.sh`, the
+From [tenki.monster](https://tenki.monster). The scripts keep their engine's names — `arena.sh`, the
 `.sandboxmaxxing/` state folder, `smx-` sandbox names — so expect those below.
 """),
     ("D=~/.claude/skills/sandboxmaxxing     #", "D=~/.claude/skills/luxor-swarm       #"),
-    ("https://sandboxmaxxing.com/skill.md                 ", "https://luxor.sh/skill.md                 "),
-    ("https://sandboxmaxxing.com/skill/arena.sh           ", "https://luxor.sh/skill/arena.sh           "),
-    ("https://sandboxmaxxing.com/skill/inject-provider.sh ", "https://luxor.sh/skill/inject-provider.sh "),
+    ("https://sandboxmaxxing.com/skill.md                 ", "https://tenki.monster/skill.md                 "),
+    ("https://sandboxmaxxing.com/skill/arena.sh           ", "https://tenki.monster/skill/arena.sh           "),
+    ("https://sandboxmaxxing.com/skill/inject-provider.sh ", "https://tenki.monster/skill/inject-provider.sh "),
     ("Say what it costs before a big arena.", "Say what it costs before a big swarm."),
 ]
 out = src
