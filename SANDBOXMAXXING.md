@@ -13,61 +13,35 @@ Distinct from **benchmark mode** (specced separately): benchmark mode fans one
 prompt across harness×model combos to *compare* them; sandboxmaxxing composes
 models into *teams* that cooperate internally and compete externally.
 
-## Teams are config, not code
+## Teams are pyramids, not rosters
 
-Team composition is a **template file** in `broker/teams/*.json`, versioned in
-the repo — trying a different org chart is editing a file, never touching the
-broker. A run names its templates (`teamA`/`teamB`, defaulting to
-`openengineer-classic` mirror-match), and templates need not be 12 seats or
-symmetric: "12 juniors vs 4 seniors" is a legal matchup, bounded only by
-`teamA.seats + teamB.seats ≤ free slots`. One-off experiments can pass an
-inline roster in the POST body without saving a file.
+_Since 2026-11-05; adapted from the agent pyramid in LuxorLabs/cookbook#84.
+This replaced the fixed `broker/teams/*.json` rosters._
 
-```jsonc
-// broker/teams/<name>.json
-{
-  "name": "openengineer-classic",
-  "description": "12 roles, one per AI lab — colygon/openengineer",
-  "seats": [
-    { "role": "architect",  "duty": "Decompose the prompt into tasks.md; assign; arbitrate.",
-      "pool": "native-free", "modelHint": "strongest" },
-    { "role": "engineer",   "duty": "Core implementation.", "pool": "openrouter-free" }
-    // …one entry per seat; "pool" picks the model source per mode
-    // (native-free | openrouter-free | frontier), or "model" pins one exactly.
-  ]
-}
-```
+A team starts as **one agent** holding the prompt. Every agent runs the same loop:
 
-The broker assigns concrete models at launch: it walks each team's seats,
-draws distinct models from the seat's pool for the active mode (Team B drawing
-after Team A so lineups differ), honors explicit `model` pins, and applies
-`modelHint: "strongest"` seats first. The per-seat `duty` text becomes that
-sandbox's role file, so a template fully defines both *who is on the team* and
-*what each seat is told to do*.
+1. Do the task itself, or split it into 2–`MAXX_FANOUT` (default 4)
+   self-contained sub-prompts with `tenki-split`. Each one goes to a sub-agent
+   in a sandbox of its own, which runs this same loop, in parallel, down to
+   `MAXX_MAX_DEPTH` (default 2) levels below the root.
+2. Run `tenki-wait`. It blocks for about 90 seconds at most (under the agents' tool-call
+   timeout), so the agent calls it again until every sub-agent has reported.
+3. A sub-agent ends with `tenki-report`. The broker tars its `/home/tenki/work` into
+   the parent's `parts/<n>-<title>/` folder, keeps its summary as the
+   answer, and terminates its sandbox.
+4. The parent integrates the parts. The root publishes with
+   `tenki-serve` + `tenki-publish`, as before.
 
-### Default template: `openengineer-classic`
+The team **size** (1 / 4 / 12 / 24 on the deploy page) is a budget: the most agents
+the pyramid may grow to, root included. Size 1 never splits. `start` reserves
+the whole budget against VM capacity up front. Seats are tree nodes
+(`path` `r`, `r.0`, `r.0.2`, with `parent`, `level`, `title`, `prompt` and `answer`), and
+`seat.role` equals the path, so watch/say still address seats by `{team, role}`.
 
-From [openengineer](https://github.com/colygon/openengineer)
-(12 roles, one per AI lab). Same 12 roles per team:
-
-| Seat | Role (openengineer) | Duty in the run |
-|---|---|---|
-| architect | Main orchestrator | Decomposes the prompt into tasks.md, assigns, arbitrates |
-| engineer | Autonomous deep worker | Core implementation |
-| strategist | Deep reasoning | Hard sub-problems handed off by architect |
-| librarian | OSS code & docs search | Finds libraries/snippets; writes CITATIONS.md |
-| researcher | Broad knowledge synthesis | Requirements → acceptance criteria |
-| analyst | Fast codebase exploration | Reviews teammates' pushes, files issues |
-| designer | Visual/UI tasks | Styling, layout, assets |
-| product-manager | Strategic planning | Scope cuts, keeps team shipping by deadline |
-| consultant | Architecture advisor | Advises architect; no direct commits |
-| qa-engineer | Plan reviewer | Tests against acceptance criteria |
-| technical-lead | Plan executor | Merges, resolves conflicts, owns the publish |
-| junior-architect | Lighter coding tasks | Small tasks, README, cleanup |
-
-All 24 seats run the **opencode** harness (openengineer is built for OpenCode,
-and opencode is the one harness that works with both free model sources). No
-Anthropic/OpenAI logins; no Nebius dependency in free mode.
+The seat helpers call `POST /api/maxx/seat/:id/split`, `GET …/wait` and
+`POST …/report`, authenticated with the seat's own expose token (the one
+`tenki-publish` uses), so a seat can only act as itself. In a later round (pick)
+the lead may split again once its previous sub-agents are done.
 
 ## Models — free mode (default)
 

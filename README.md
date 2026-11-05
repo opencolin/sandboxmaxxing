@@ -15,8 +15,7 @@ the shared base and every team iterates on it.
 |---|---|
 | `index.html` | The whole front end — one self-contained page, no build step |
 | `broker/` | Node service: serves the site, mints sandboxes, orchestrates runs, proxies inference |
-| `broker/maxx.js` | The arena — team layout, seat launch per harness, rounds, judging |
-| `broker/teams/` | Agent rosters as data (24 roles; a team of N takes the first N) |
+| `broker/maxx.js` | The arena — agent pyramids (split / wait / report), seat launch per harness, rounds, judging |
 | `skills/agent-provider-inject/` | **[Reusable skill](skills/agent-provider-inject/)** — point claude/codex/opencode at any inference provider |
 
 ## Features

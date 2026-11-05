@@ -534,8 +534,6 @@
   @media (max-width: 640px) { .mx-controls { grid-template-columns: minmax(0, 1fr); gap: 22px; } }
   .mx-role { border: 1px solid var(--line); border-radius: 999px; padding: 5px 11px; font-size: 12px; color: #9a9a9a; }
   .mx-role.lead { border-color: rgba(var(--sand-rgb),.55); color: var(--sand); }
-  #mxTemplates .chip { cursor: pointer; }
-  #mxTemplates .chip.sel { border-color: var(--fg); color: var(--fg); background: #161616; }
   /* arena */
   .mx-arena-head { display: flex; align-items: center; gap: 20px; flex-wrap: wrap; margin-bottom: 20px; }
   .mx-arena-actions { margin-left: auto; display: flex; align-items: center; gap: 24px; flex-wrap: wrap; }
@@ -930,7 +928,7 @@ build a habit tracker with streaks</pre>
       </div>
       <div class="dp-scale-panel" id="dpScalePanel" hidden>
         <div class="build-scale-group">
-          <span class="mx-ctl-label">Agents / team</span>
+          <span class="mx-ctl-label" title="A team starts as one agent; agents split work into sub-agents up to this many">Max agents / team</span>
           <div class="mx-seg" id="dpAgents">
             <button class="on" onclick="dpSetSize(1,this)">1</button>
             <button onclick="dpSetSize(4,this)">4</button>
@@ -1048,8 +1046,13 @@ tenki sandbox ssh --session my-box</div>
 
       <div class="mx-controls">
         <div>
-          <div class="mx-ctl-label">Team template</div>
-          <div id="mxTemplates" class="chips" style="margin-top:0;"></div>
+          <div class="mx-ctl-label" title="A team starts as one agent; agents split work into sub-agents up to this many">Max agents / team</div>
+          <div class="mx-seg" id="mxSizes">
+            <button onclick="mxSetSize(1,this)">1</button>
+            <button class="on" onclick="mxSetSize(4,this)">4</button>
+            <button onclick="mxSetSize(12,this)">12</button>
+            <button onclick="mxSetSize(24,this)">24</button>
+          </div>
         </div>
         <div>
           <div class="mx-ctl-label">Format</div>
@@ -1427,7 +1430,7 @@ function dpToggleScale(force) {
   t.setAttribute('aria-expanded', open ? 'true' : 'false');
 }
 function dpScaleSummary() {
-  const agents = dp.size === 1 ? '1 agent' : dp.size + ' agents';
+  const agents = dp.size === 1 ? '1 agent' : 'up to ' + dp.size + ' agents';
   return dp.teams > 1 ? `${dp.teams} teams × ${agents}` : `${agents} · Solo`;
 }
 function dpSegOn(btn) { [...btn.parentElement.children].forEach(c => c.classList.toggle('on', c === btn)); }
@@ -2311,28 +2314,10 @@ requestAnimationFrame(frame);
 
 /* ================= sandboxmaxxing ================= */
 const MX_API = '/api/maxx';
-const mx = { template: null, mode: 'free', compete: false, runId: null, poll: null, started: 0, inited: false, view: 'theater', playing: null, railSig: '' };
+const mx = { size: 4, mode: 'free', compete: false, runId: null, poll: null, started: 0, inited: false, view: 'theater', playing: null, railSig: '' };
 
 async function mxInit() {
   if (mx.inited) return; mx.inited = true;
-  // templates
-  try {
-    const r = await fetch(MX_API);
-    const { templates } = await r.json();
-    const box = document.getElementById('mxTemplates');
-    box.innerHTML = '';
-    // sensible default for this legacy launcher: a lean team, not the 24-seat roster
-    const def = (templates.find(t => t.name === 'lean-four') || templates[0] || {}).name;
-    templates.forEach((t) => {
-      const b = document.createElement('button');
-      b.className = 'chip' + (t.name === def ? ' sel' : '');
-      b.textContent = t.name;
-      b.title = (t.description || '') + ' · ' + t.seats + ' seats';
-      b.onclick = () => { mx.template = t.name; [...box.children].forEach(c => c.classList.toggle('sel', c === b)); };
-      box.appendChild(b);
-    });
-    mx.template = def;
-  } catch { document.getElementById('mxTemplates').textContent = 'templates unavailable'; }
   mxCapacity();
 }
 async function mxCapacity() {
@@ -2340,6 +2325,7 @@ async function mxCapacity() {
   const el = document.getElementById('mxCapacity');
   el.innerHTML = 'Free models · no keys, no cost · each seat a sandbox with a live terminal';
 }
+function mxSetSize(n, btn) { mx.size = n; [...btn.parentElement.children].forEach(c => c.classList.toggle('on', c === btn)); }
 function mxSetMode(m) {
   mx.mode = m; mxErr('');
   document.getElementById('mxFree').classList.toggle('on', m === 'free');
@@ -2497,7 +2483,7 @@ async function mxLaunch() {
   mxErr('');
   btn.disabled = true; btn.textContent = 'Spinning up sandboxes…';
   try {
-    const body = { prompt, team: mx.template, mode: mx.mode, compete: mx.compete };
+    const body = { prompt, size: mx.size, teams: mx.compete ? 2 : 1, mode: mx.mode };
     if (repo) body.repo = repo;
     const { ok, data } = await mxBeginRun(body, prompt);
     if (!ok) {
@@ -2531,21 +2517,26 @@ async function mxTick() {
   } catch {}
 }
 
+// A seat is a node in its team's pyramid: path "r", "r.0", "r.0.2"…, indented by level.
+// Sub-agent titles and answers are written by agents, so escape them.
+function mxEsc(t) { return String(t).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+function mxSeatName(s) { return mxEsc((s.title || s.role || '') + (s.level ? ' · ' + s.path : '')); }
 function mxSeatCard(s, i, team, terminal) {
-  const lead = i === 0 || s.role === 'architect';
+  const lead = !s.level;
   const raw = s.state || 'pending';
   const published = raw === 'published' || s.published;
   // Once the run is over, a lingering "running" seat is really stopped.
-  const st = terminal && !published ? (raw === 'shipped' ? 'shipped' : 'stopped') : raw;
-  const stColor = { running: '#3ecf6a', RUNNING: '#3ecf6a', starting: '#e0b34c', pending: '#e0b34c', published: 'var(--sand)', shipped: 'var(--sand)', stopped: '#6a6a6a', ended: '#6a6a6a', failed: '#e06c6c' }[st] || '#6a6a6a';
-  const running = st === 'running' || st === 'RUNNING';
+  const st = terminal && !published ? (raw === 'shipped' || raw === 'done' ? raw : 'stopped') : raw;
+  const stColor = { running: '#3ecf6a', RUNNING: '#3ecf6a', waiting: '#6cb6e0', done: '#9a9a9a', starting: '#e0b34c', pending: '#e0b34c', published: 'var(--sand)', shipped: 'var(--sand)', stopped: '#6a6a6a', ended: '#6a6a6a', failed: '#e06c6c' }[st] || '#6a6a6a';
+  const running = st === 'running' || st === 'RUNNING' || st === 'waiting';
   const watch = (!terminal && s.terminalUrl)
     ? `<a class="mx-watch" href="${s.terminalUrl}" target="_blank" rel="noopener">watch ↗</a>`
     : running
       ? `<button class="mx-watch mx-watch-btn" onclick="mxWatch('${team}','${s.role}',this)">watch</button>`
       : `<span class="mx-watch off">—</span>`;
-  return `<div class="mx-seat${lead ? ' lead' : ''}">
-    <div class="mx-seat-top"><span class="mx-dot ${st}"></span><span class="mx-seat-role">${s.role}</span></div>
+  const tip = mxEsc(s.answer || '');
+  return `<div class="mx-seat${lead ? ' lead' : ''}" style="margin-left:${(s.level || 0) * 14}px;"${tip ? ` title="${tip}"` : ''}>
+    <div class="mx-seat-top"><span class="mx-dot ${st}"></span><span class="mx-seat-role">${mxSeatName(s)}</span></div>
     <div class="mx-seat-model">${s.model || ''}</div>
     <div class="mx-seat-foot"><span class="mx-seat-state" style="color:${stColor}">${st}</span>${watch}</div>
   </div>`;
@@ -2594,18 +2585,19 @@ function mxRailRender(run) {
   for (const t of teams) {
     for (const seat of t.seats) {
       const key = mxSeatKey(t.tag, seat.role);
-      const live = !terminal && (seat.state === 'running' || seat.state === 'RUNNING');
-      const st = terminal && seat.state !== 'published' ? 'stopped' : (seat.state || 'pending');
+      const live = !terminal && (seat.state === 'running' || seat.state === 'RUNNING' || seat.state === 'waiting');
+      const st = terminal && seat.state !== 'published' && seat.state !== 'done' ? 'stopped' : (seat.state || 'pending');
       // A seat whose machine is still booting can be put on the stage too — it shows
       // the boot, then the agent. Only failed seats and finished runs stay disabled.
-      const pickable = !terminal && st !== 'failed';
-      const dotColor = { running: '#3ecf6a', RUNNING: '#3ecf6a', published: 'var(--sand)', shipped: 'var(--sand)', failed: '#e06c6c' }[st] || '#6a6a6a';
+      // A sub-agent that reported has handed its work up and its machine is gone.
+      const pickable = !terminal && st !== 'failed' && st !== 'done';
+      const dotColor = { running: '#3ecf6a', RUNNING: '#3ecf6a', waiting: '#6cb6e0', published: 'var(--sand)', shipped: 'var(--sand)', failed: '#e06c6c' }[st] || '#6a6a6a';
       const on = mx.playing === key;
       cards.push(
         `<button class="mx-side${on ? ' on' : ''}" onclick="mxPlay('${t.tag}','${seat.role}',this)"${pickable ? '' : ' disabled style="opacity:.5;cursor:default;"'}>
-           <span class="mx-side-thumb"><code>${(seat.role || '').slice(0, 22)}<br>$ ${live ? 'working…' : st === 'pending' ? 'booting…' : st}</code></span>
+           <span class="mx-side-thumb"><code>${mxEsc((seat.path || seat.role || '').slice(0, 22))}<br>$ ${st === 'waiting' ? 'waiting on sub-agents…' : live ? 'working…' : st === 'pending' ? 'booting…' : st}</code></span>
            <span class="mx-side-meta">
-             <span class="mx-side-role">${seat.role}</span>
+             <span class="mx-side-role">${mxSeatName(seat)}</span>
              <span class="mx-side-model">${seat.model || ''}</span>
              <span class="mx-side-state"><span class="mx-dot" style="background:${dotColor};width:6px;height:6px;"></span>${st} · <span class="mx-side-team">TEAM ${t.tag}</span></span>
            </span>
@@ -2716,7 +2708,7 @@ async function mxEnsureTerminal() {
     empty.style.display = 'flex'; empty.innerHTML = '<span style="color:#e0906c;">This agent’s machine failed to start.</span>';
     return;
   }
-  if (!['running', 'RUNNING', 'published', 'shipped'].includes(seat.state)) return mxBootStep('Creating the machine…');
+  if (!['running', 'RUNNING', 'waiting', 'published', 'shipped'].includes(seat.state)) return mxBootStep('Creating the machine…');
   mx.opening = key;
   mxBootStep('Machine up — opening its terminal…');
   try {
@@ -2753,7 +2745,7 @@ function mxRender(run) {
   const teams = run.teams || [];
   // A terminal run is authoritative: no seat is still "building" once the run ends,
   // even if a stale per-seat state lingers in state.json.
-  const isRunning = s => !terminal && (s.state === 'running' || s.state === 'RUNNING');
+  const isRunning = s => !terminal && (s.state === 'running' || s.state === 'RUNNING' || s.state === 'waiting');
   const allSeats = teams.flatMap(t => t.seats);
   document.getElementById('mxBuilding').textContent = allSeats.filter(isRunning).length;
   document.getElementById('mxPushed').textContent = teams.filter(t => t.publishedUrl).length;

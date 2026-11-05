@@ -1,11 +1,18 @@
-/* Sandboxmaxxing — configurable agent teams building one prompt in parallel
- * sandboxes. Supports two rival teams with a judge, Free (keyless opencode
- * native models) or Frontier (opencode → the broker's relay → Qwen3.8-27B, keys
- * server-side), and an optional starting repo (gortex-indexed per seat).
+/* Sandboxmaxxing — agent pyramids building one prompt in parallel sandboxes.
+ * Supports two rival teams with a judge, Free (keyless opencode native models)
+ * or Frontier (opencode → the broker's relay → Qwen3.8-27B, keys server-side),
+ * and an optional starting repo (gortex-indexed per seat).
  *
- * Seats run HEADLESS — no per-seat preview URL — so a full 24-agent run costs
- * zero preview URLs; only each team's SHIPPED app takes one. Watchability is a
- * later on-demand add. Teams are data (broker/teams/*.json).
+ * A team is not a fixed roster. It starts as ONE agent with the prompt. Any
+ * agent may split its task into up to FANOUT self-contained sub-prompts
+ * (`tenki-split`); each goes to a sub-agent in a sandbox of its own, which runs
+ * the same loop, up to MAX_DEPTH levels and the team's agent budget. A
+ * sub-agent finishes with `tenki-report`: the broker copies its work into the
+ * parent's parts/ folder and terminates its sandbox, and the parent combines
+ * the parts (`tenki-wait`). The root publishes the app.
+ *
+ * Seats run HEADLESS — no per-seat preview URL — so a run costs zero preview
+ * URLs until it ships; only each team's SHIPPED app takes one.
  */
 import fs from "node:fs";
 import path from "node:path";
@@ -67,8 +74,14 @@ const APP_PORT = 3000;
 const DEFAULT_DEADLINE_MS = 30 * 60_000;
 const SEAT_STAGGER_MS = 1500;
 const JUDGE_MAX_WAIT_MS = 20 * 60_000;   // judge on whatever shipped by here
+// Pyramid shape: an agent splits into at most FANOUT sub-agents, MAX_DEPTH
+// levels below the root. The team's size is a budget on top of that.
+const FANOUT = Number(process.env.MAXX_FANOUT || 4);
+const MAX_DEPTH = Number(process.env.MAXX_MAX_DEPTH || 2);
+const WAIT_BLOCK_MS = 90_000;            // under the agents' ~2 min tool-call timeout
+const DONE = new Set(["done", "failed", "stopped", "ended"]);
 
-export function createMaxx({ client, tracked, saveState, indexRelay, log, json, readJson, terminateSession, brokerUrl, opencodeUpgrade = "" }) {
+export function createMaxx({ client, tracked, saveState, indexRelay, log, json, readJson, terminateSession, tokenEq, brokerUrl, opencodeUpgrade = "" }) {
   const DIR = path.dirname(new URL(import.meta.url).pathname);
   // Web search/fetch for seats, via the broker relay (TinyFish free tier). The
   // shim ships into the seat; the real key never leaves the broker. Feature is
@@ -77,7 +90,6 @@ export function createMaxx({ client, tracked, saveState, indexRelay, log, json, 
   try { WEB_MCP_B64 = fs.readFileSync(path.join(DIR, "seat", "websearch-mcp.js"), "utf8"); } catch {}
   const webEnabled = () => !!(process.env.TINYFISH_API_KEY && WEB_MCP_B64);
   const WEB_MCP_PATH = "/home/tenki/.local/bin/websearch-mcp.js";
-  const TEAMS_DIR = path.join(DIR, "teams");
   const STATE_FILE = path.join(DIR, "maxx-state.json");
 
   let runs = {};
@@ -99,7 +111,7 @@ export function createMaxx({ client, tracked, saveState, indexRelay, log, json, 
     g.unshift({
       id, url, featured: false, shippedAt: new Date().toISOString(),
       prompt: String(r.prompt || "").slice(0, 240),
-      team: team.tag, agents: team.size, harness: r.harness || "opencode", provider: r.provider || null,
+      team: team.tag, agents: team.seats.length, harness: r.harness || "opencode", provider: r.provider || null,
     });
     try { fs.writeFileSync(GALLERY_FILE, JSON.stringify(g.slice(0, 200), null, 2)); }
     catch (e) { log("gallery_write_failed", { message: e.message }); }
@@ -121,46 +133,55 @@ export function createMaxx({ client, tracked, saveState, indexRelay, log, json, 
     });
   }
 
-  const loadTemplate = (name) => {
-    const safe = String(name || "").replace(/[^a-z0-9-]/gi, "");
-    if (!safe) return null;
-    try { return JSON.parse(fs.readFileSync(path.join(TEAMS_DIR, `${safe}.json`), "utf8")); }
-    catch { return null; }
-  };
-  const listTemplates = () =>
-    fs.readdirSync(TEAMS_DIR).filter((f) => f.endsWith(".json")).map((f) => {
-      try { const t = JSON.parse(fs.readFileSync(path.join(TEAMS_DIR, f), "utf8"));
-            return { name: t.name, description: t.description, seats: t.seats?.length ?? 0 }; }
-      catch { return null; }
-    }).filter(Boolean);
-
-  // Canonical roster: a team of N takes the first N seats (architect first), so
-  // sizes 1/4/12/24 are prefixes. The deploy-page selectors drive this.
-  const ROSTER = "full-24";
+  // A team's size is its agent budget: the most agents its pyramid may grow to,
+  // root included. Size 1 never splits. The deploy-page selector drives this.
   const TEAM_SIZES = [1, 4, 12, 24];    // selectable per-team size (solo / 2-team)
   const TAGS = ["A", "B"];              // head-to-head only
-  function rosterSeats(n) {
-    const t = loadTemplate(ROSTER);
-    const seats = (t && t.seats) || [];
-    return seats.slice(0, Math.max(1, Math.min(Number(n) || 1, seats.length)));
-  }
 
-  // Seat 0 (lead/architect) always gets the strongest model; others round-robin.
+  // The root always gets the strongest model; sub-agents round-robin the rest.
   // Frontier: everyone on the one hosted model (relay pins it). offset shifts
   // Team B's free lineup so the two teams differ.
-  function assignModels(seats, mode, offset, harness, provider) {
+  function seatModel(idx, run, offset) {
     // claude/codex: the relay pins the model, so every seat is labelled by its
     // harness + upstream (e.g. "claude · openrouter").
-    if (harness === "claude" || harness === "codex")
-      return seats.map(() => `${harness} · ${harnessProvider(harness, provider)}`);
-    if (mode === "frontier") return seats.map(() => `relay/${FRONTIER_MODEL}`);
+    if (run.harness === "claude" || run.harness === "codex") return `${run.harness} · ${harnessProvider(run.harness, run.provider)}`;
+    if (run.mode === "frontier") return `relay/${FRONTIER_MODEL}`;
     const [strong, ...rest] = NATIVE_FREE;
-    let i = offset;
-    return seats.map((s, idx) =>
-      s.model ? s.model
-      : idx === 0 || s.modelHint === "strongest" ? strong
-      : rest[i++ % rest.length]);
+    return idx === 0 ? strong : rest[(offset + idx - 1) % rest.length];
   }
+
+  // What a seat is told to do. Every agent gets the same loop; only where it
+  // sits in the pyramid (can it split, does it publish or report) differs.
+  function seatDuty(run, team, seat) {
+    const isRoot = seat.level === 0;
+    const canSplit = seat.level < MAX_DEPTH && team.size > 1;
+    const lines = [
+      isRoot
+        ? `You are the lead agent of a pyramid of agents. Build the requested application in /home/tenki/work, make it genuinely good, and get it live. Keep the scope tight enough to actually finish and ship.`
+        : `You are agent ${seat.path} ("${seat.title}") in a pyramid of agents building one application. Your parent agent gave you the task below. Do it well and keep it self-contained.`,
+    ];
+    if (canSplit) lines.push(
+      `\nYou may do the task yourself, or, if it divides into 2 to ${FANOUT} independent parts that are each worth an agent, delegate them:\n` +
+      `tenki-split <<'EOF'\n[{"title": "2 to 4 words", "prompt": "a complete, self-contained prompt"}]\nEOF\n` +
+      `Each sub-agent gets a sandbox of its own, sees ONLY its own prompt (so include every detail it needs: file names, interfaces, style), works in parallel, and may split again. ` +
+      `tenki-split says how many agents your team has left; if it refuses, do the work yourself. Split at most once, early, and keep working on your own part meanwhile.\n` +
+      `Then run tenki-wait. It returns after about 90 seconds or once every sub-agent has reported, prints each one's summary, and puts its files in /home/tenki/work/parts/<n>-<title>/. ` +
+      `Run it again until it says all are done, then integrate the parts into one working result. If a sub-agent fails or stalls, do its part yourself.`);
+    if (isRoot) lines.push(
+      `\nWhen the app is ready, publish it with these two commands (in this order):\n  tenki-serve ${APP_PORT} /home/tenki/work\n  tenki-publish ${APP_PORT}\n` +
+      `Then print the URL it returns. Use tenki-serve rather than starting your own background server — a plain \`nohup ... &\` dies with your shell and the published URL then 502s. ` +
+      `If the app needs its own runtime (node etc.), start it with \`setsid nohup <cmd> </dev/null >/tmp/serve.log 2>&1 &\` instead, then run tenki-publish ${APP_PORT}.`);
+    else lines.push(
+      `\nWhen your part is finished, run this as your LAST step (it hands your /home/tenki/work to your parent and shuts this sandbox down):\n` +
+      `tenki-report <<'EOF'\nwhat you built, which files, and anything your parent must know to integrate it\nEOF`);
+    lines.push(isRoot ? `\nBUILD REQUEST:\n${run.prompt}` : `\nYOUR TASK:\n${seat.prompt}\n\nTHE OVERALL BUILD (context only; do just your task):\n${run.prompt}`);
+    return lines.join("\n");
+  }
+  const newSeat = (run, team, fields) => ({
+    ...fields, role: fields.path,
+    model: seatModel(team.seats.length, run, TAGS.indexOf(team.tag) * 2),
+    state: "pending", id: null, terminalUrl: null, answer: null,
+  });
 
   const token = () => crypto.randomBytes(24).toString("base64url");
 
@@ -194,6 +215,20 @@ export function createMaxx({ client, tracked, saveState, indexRelay, log, json, 
       "for i in $(seq 1 25); do sleep 0.4; curl -sf -o /dev/null \"http://127.0.0.1:$port/\" && { echo \"serving $dir on $port\"; exit 0; }; done\n" +
       "echo 'tenki-serve: port did not come up; see /tmp/serve.log' >&2; exit 1\n" +
       "SERVE\nchmod +x $HOME/.local/bin/tenki-serve";
+    // Pyramid helpers: split into sub-agents, wait for them, report to the parent.
+    // The broker answers each with JSON whose `text` is meant for the agent to read.
+    const seatApi = (name, method, body) =>
+      `cat > $HOME/.local/bin/${name} <<'HELPER'\n#!/bin/bash\n` +
+      (body ? `${body} | ` : "") +
+      `curl -sS -X ${method} "$TENKI_BROKER_URL/api/maxx/seat/$TENKI_SESSION_ID/${name.replace("tenki-", "")}" ` +
+      `-H "x-expose-token: $TENKI_EXPOSE_TOKEN" -H 'content-type: application/json'` + (body ? " --data-binary @-" : "") +
+      ` | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d.get("text") or json.dumps(d))'\n` +
+      `HELPER\nchmod +x $HOME/.local/bin/${name}`;
+    const pyramidHelpers = [
+      seatApi("tenki-split", "POST", `python3 -c 'import json,sys; print(json.dumps({"subtasks": json.loads(sys.argv[1] if len(sys.argv) > 1 else sys.stdin.read())}))' "$@"`),
+      seatApi("tenki-wait", "GET", null),
+      seatApi("tenki-report", "POST", `python3 -c 'import json,sys; print(json.dumps({"summary": " ".join(sys.argv[1:]) or sys.stdin.read()}))' "$@"`),
+    ];
     // The MCP shim reaches the web through the broker relay, so the seat needs
     // its relay token — never the upstream key.
     const webMcp = webEnabled()
@@ -208,6 +243,7 @@ export function createMaxx({ client, tracked, saveState, indexRelay, log, json, 
       'export PATH="$HOME/.local/bin:$PATH"',
       publishHelper,
       serveHelper,
+      ...pyramidHelpers,
       ...webMcp,
     ];
   }
@@ -364,9 +400,9 @@ export function createMaxx({ client, tracked, saveState, indexRelay, log, json, 
   }
   const warmGet = (res) => json(res, 200, warmStatus());
 
-  async function launchSeat(run, team, seat, isArchitect) {
+  async function launchSeat(run, team, seat) {
     const ttl = Math.max(60_000, run.deadline - Date.now());
-    const name = `maxx-${team.tag}-${seat.role}-${crypto.randomBytes(2).toString("hex")}`;
+    const name = `maxx-${team.tag}-${seat.path.replace(/\./g, "-")}-${crypto.randomBytes(2).toString("hex")}`;
     // A warm machine if one is ready (tmux and opencode already installed), else a new one.
     let session = null;
     const warmId = takeWarm();
@@ -379,7 +415,7 @@ export function createMaxx({ client, tracked, saveState, indexRelay, log, json, 
       name,
       cpuCores: 1, memoryMb: SEAT_MEMORY_MB, allowInbound: true, allowOutbound: true,
       maxDurationMs: ttl, idleTimeoutMinutes: 0,
-      metadata: { demo: "true", source: "maxx", maxx: run.id, team: team.tag, role: seat.role },
+      metadata: { demo: "true", source: "maxx", maxx: run.id, team: team.tag, role: seat.path },
       waitReady: true,
     });
     const entry = trackSeat(session.id);
@@ -389,9 +425,6 @@ export function createMaxx({ client, tracked, saveState, indexRelay, log, json, 
     const isOpencode = harness === "opencode";
     const frontier = run.mode === "frontier";
     const model = seat.model;
-    const publishNote = isArchitect
-      ? `\n\nWhen the app is ready, publish it with these two commands (in this order):\n  tenki-serve ${APP_PORT} /home/tenki/work\n  tenki-publish ${APP_PORT}\nThen print the URL it returns. Use tenki-serve rather than starting your own background server — a plain \`nohup ... &\` dies with your shell and the published URL then 502s. If the app needs its own runtime (node etc.), start it with \`setsid nohup <cmd> </dev/null >/tmp/serve.log 2>&1 &\` instead, then run tenki-publish ${APP_PORT}.`
-      : "";
     const webNote = webEnabled()
       ? "\n\nYou have live web tools via MCP: `web_search` (search the web) and `fetch_url` (read pages as Markdown). Use them to check current docs/APIs rather than guessing from memory."
       : "";
@@ -528,7 +561,7 @@ export function createMaxx({ client, tracked, saveState, indexRelay, log, json, 
       ...setup,
       ...cfgWrite,
       ...seedCfg,
-      `cat > /tmp/prompt.txt <<'PROMPT'\n${seat.duty}\n\nBUILD REQUEST:\n${run.prompt}${repoNote}${webNote}${publishNote}\nPROMPT`,
+      `cat > /tmp/prompt.txt <<'PROMPT'\n${seatDuty(run, team, seat)}${repoNote}${webNote}\nPROMPT`,
       // Run the agent's TUI in a detached tmux session (autonomous + attachable),
       // so watch drops into the live agent rather than a log tail. The stock image
       // has no tmux, and apt's mirrors sometimes reset the connection — once that
@@ -552,38 +585,149 @@ export function createMaxx({ client, tracked, saveState, indexRelay, log, json, 
   }
 
   async function launchRun(run) {
-    const seatFail = (team, seat, e) => {
-      seat.state = "failed"; seat.error = e.message; save();
-      log("maxx_seat_failed", { runId: run.id, team: team.tag, role: seat.role, message: e.message });
-    };
     try {
-      // Fair start: every team's architect (seat 0) launches at the same time,
-      // so no team gets a head start in the arena.
+      // Fair start: every team's root agent launches at the same time, so no
+      // team gets a head start in the arena. Sub-agents come later, on demand.
       await Promise.all(run.teams.map((team) =>
-        team.seats.length
-          ? launchSeat(run, team, team.seats[0], true).catch((e) => seatFail(team, team.seats[0], e))
-          : Promise.resolve()));
-      // Remaining seats, staggered and interleaved across teams (column by
-      // column) so a large team doesn't monopolize the early launches.
-      const maxLen = Math.max(0, ...run.teams.map((t) => t.seats.length));
-      for (let k = 1; k < maxLen; k++) {
-        for (const team of run.teams) {
-          if (k >= team.seats.length) continue;
-          if (run.aborted) { log("maxx_launch_aborted", { runId: run.id }); return; }
-          try { await launchSeat(run, team, team.seats[k], false); }
-          catch (e) { seatFail(team, team.seats[k], e); }
-          await new Promise((r) => setTimeout(r, SEAT_STAGGER_MS));
-        }
-      }
+        launchSeat(run, team, team.seats[0]).catch((e) => seatFailed(run, team, team.seats[0], e))));
       if (!run.aborted) {
         run.state = "running"; save();
-        log("maxx_launched", { runId: run.id, teams: run.teams.length, seats: run.teams.reduce((n, t) => n + t.seats.length, 0) });
+        log("maxx_launched", { runId: run.id, teams: run.teams.length });
         if (run.compete) setTimeout(() => judge(run, true).catch(() => {}), JUDGE_MAX_WAIT_MS);
       }
     } catch (e) {
       run.state = "failed"; run.error = e.message; save();
       log("maxx_launch_failed", { runId: run.id, message: e.message });
     }
+  }
+  function seatFailed(run, team, seat, e) {
+    seat.state = "failed"; seat.error = e.message;
+    seat.answer = seat.answer || `FAILED: ${e.message}`;
+    save();
+    log("maxx_seat_failed", { runId: run.id, team: team.tag, seat: seat.path, message: e.message });
+  }
+
+  /* ---- Seat calls (the pyramid) -------------------------------------------
+   * A seat reaches these with its own session id and expose token, the same
+   * credential tenki-publish uses, so it can only act as itself. */
+  function seatAuth(req, res, sessionId) {
+    const entry = tracked[sessionId];
+    if (!entry || !entry.maxx || !tokenEq(String(req.headers["x-expose-token"] || ""), entry.exposeToken || "")) {
+      json(res, 403, { error: "forbidden" }); return null;
+    }
+    for (const r of Object.values(runs)) for (const team of r.teams || []) {
+      const seat = team.seats.find((s) => s.id === sessionId);
+      if (seat) return { r, team, seat };
+    }
+    json(res, 404, { error: "seat_not_found" }); return null;
+  }
+  const childrenOf = (team, seat) => team.seats.filter((s) => s.parent === seat.path);
+  const slug = (t) => String(t).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 32) || "part";
+  const partDir = (child) => `parts/${child.path.split(".").pop()}-${slug(child.title)}`;
+
+  // POST /api/maxx/seat/:id/split { subtasks: [{title, prompt}] } — start sub-agents.
+  async function split(req, res, sessionId) {
+    const ctx = seatAuth(req, res, sessionId); if (!ctx) return;
+    const { r, team, seat } = ctx;
+    const no = (error, text) => json(res, 409, { error, text });
+    if (r.aborted || !["launching", "running"].includes(r.state)) return no("run_over", "The run is over; finish what you have.");
+    if (seat.level >= MAX_DEPTH) return no("too_deep", "You are at the bottom of the pyramid and cannot split. Do the task yourself.");
+    // One split at a time: a seat may split again (e.g. in a later round) once its last sub-agents are done.
+    const before = childrenOf(team, seat);
+    if (before.some((k) => !DONE.has(k.state))) return no("already_split", "Your sub-agents are still working. Run tenki-wait.");
+    const body = await readJson(req, 64 * 1024);
+    const list = Array.isArray(body.subtasks) ? body.subtasks : [];
+    const subtasks = list
+      .map((t) => ({ title: String(t?.title || "").slice(0, 60).trim(), prompt: String(t?.prompt || "").slice(0, 6000).trim() }))
+      .filter((t) => t.title && t.prompt);
+    if (!subtasks.length) return json(res, 400, { error: "bad_subtasks", text: `Give a JSON array of 1 to ${FANOUT} {"title", "prompt"} objects.` });
+    const left = team.size - team.seats.length;
+    const take = subtasks.slice(0, Math.min(FANOUT, left));
+    if (!take.length) return no("no_budget", "Your team has no agents left to start. Do the task yourself.");
+    // newSeat picks a model by the team's seat count, so add them one at a time.
+    const kids = take.map((t, i) => {
+      const k = newSeat(r, team, { path: `${seat.path}.${before.length + i}`, parent: seat.path, level: seat.level + 1, title: t.title, prompt: t.prompt, gen: before.length });
+      team.seats.push(k);
+      return k;
+    });
+    seat.state = "waiting";
+    save();
+    log("maxx_split", { runId: r.id, team: team.tag, seat: seat.path, children: kids.length });
+    (async () => {
+      for (const k of kids) {
+        if (r.aborted) return;
+        launchSeat(r, team, k).catch((e) => seatFailed(r, team, k, e));
+        await new Promise((f) => setTimeout(f, SEAT_STAGGER_MS));
+      }
+    })();
+    const dropped = subtasks.length - take.length;
+    return json(res, 200, {
+      ok: true, children: kids.map((k) => ({ path: k.path, title: k.title, dir: `/home/tenki/work/${partDir(k)}` })),
+      agentsLeft: team.size - team.seats.length,
+      text: `Started ${kids.length} sub-agent${kids.length === 1 ? "" : "s"}: ${kids.map((k) => `"${k.title}"`).join(", ")}.` +
+        (dropped ? ` ${dropped} subtask${dropped === 1 ? " was" : "s were"} dropped (limit ${FANOUT} per split, or the team's budget); do ${dropped === 1 ? "it" : "them"} yourself.` : "") +
+        ` Their work will land in /home/tenki/work/parts/. Keep working, then run tenki-wait.`,
+    });
+  }
+
+  // GET /api/maxx/seat/:id/wait — block until every sub-agent is done (or ~90 s).
+  async function wait(req, res, sessionId) {
+    const ctx = seatAuth(req, res, sessionId); if (!ctx) return;
+    const { team, seat } = ctx;
+    // The latest split only: earlier rounds' sub-agents were already integrated.
+    const kids = () => { const all = childrenOf(team, seat); const gen = all.at(-1)?.gen; return all.filter((k) => k.gen === gen); };
+    if (!kids().length) return json(res, 200, { done: true, text: "You have no sub-agents. Do the task yourself." });
+    let gone = false; req.on("close", () => { gone = true; });
+    const until = Date.now() + WAIT_BLOCK_MS;
+    while (!gone && Date.now() < until && !kids().every((k) => DONE.has(k.state))) await new Promise((f) => setTimeout(f, 3000));
+    const all = kids();
+    const done = all.every((k) => DONE.has(k.state));
+    if (done && seat.state === "waiting") { seat.state = "running"; save(); }
+    const text = all.map((k) =>
+      `## ${k.title} (${k.state})${k.state === "done" ? ` — files in /home/tenki/work/${partDir(k)}/` : ""}\n` +
+      (k.answer ? k.answer : "still working…")).join("\n\n");
+    return json(res, 200, {
+      done, pending: all.filter((k) => !DONE.has(k.state)).length,
+      text: (done ? "All sub-agents have finished. Integrate their parts.\n\n" : `${all.filter((k) => !DONE.has(k.state)).length} of ${all.length} sub-agents still working; run tenki-wait again (keep working meanwhile).\n\n`) + text,
+    });
+  }
+
+  // POST /api/maxx/seat/:id/report { summary } — a sub-agent hands its work to
+  // its parent: copy its tree into the parent's parts/ folder, then end it.
+  async function report(req, res, sessionId) {
+    const ctx = seatAuth(req, res, sessionId); if (!ctx) return;
+    const { r, team, seat } = ctx;
+    if (!seat.parent) return json(res, 400, { error: "root_reports_nothing", text: "You are the lead: publish with tenki-serve and tenki-publish instead." });
+    if (DONE.has(seat.state)) return json(res, 409, { error: "already_reported", text: "Already reported." });
+    const body = await readJson(req, 64 * 1024);
+    let answer = String(body.summary || "").slice(0, 4000).trim() || "(no summary)";
+    const parent = team.seats.find((s) => s.path === seat.parent);
+    try {
+      const src = await client.get(seat.id);
+      const out = await src.exec("bash", {
+        args: ["-lc", "cd /home/tenki/work 2>/dev/null && tar czf - --exclude=node_modules --exclude=.git --exclude=opencode.json . 2>/dev/null | base64 -w0"],
+        timeoutMs: 90_000,
+      });
+      const b64 = (stdoutText(out) || "").trim();
+      if (b64.length > 1_500_000) throw new Error("work too large to copy (over ~1 MB compressed)");
+      if (!parent?.id) throw new Error("parent sandbox is gone");
+      const dst = await client.get(parent.id);
+      const dir = `/home/tenki/work/${partDir(seat)}`;
+      await dst.exec("bash", {
+        args: ["-lc", `mkdir -p ${dir} && ${b64 ? `echo ${b64} | base64 -d | tar xzf - -C ${dir} && ` : ""}echo COPIED`],
+        timeoutMs: 90_000,
+      });
+    } catch (e) {
+      answer += `\n\n(Its files could not be copied to you: ${e.message}. Rebuild what you need from this summary.)`;
+      log("maxx_report_copy_failed", { runId: r.id, seat: seat.path, message: e.message });
+    }
+    seat.answer = answer; seat.state = "done";
+    const id = seat.id;
+    delete tracked[id];
+    save(); saveState(); indexRelay();
+    log("maxx_reported", { runId: r.id, team: team.tag, seat: seat.path });
+    json(res, 200, { ok: true, text: "Reported to your parent. This sandbox is shutting down." });
+    setTimeout(() => terminateSession(id), 5_000);   // let the reply reach the agent first
   }
 
   /* Broker-side judge — no sandbox. When both teams have shipped (or the max
@@ -605,7 +749,7 @@ export function createMaxx({ client, tracked, saveState, indexRelay, log, json, 
       }));
       const letters = run.teams.map((t) => t.tag);
       const blocks = run.teams.map((t, i) =>
-        `TEAM ${t.tag} — ${t.size ?? t.seats.length} agent${(t.size ?? t.seats.length) === 1 ? "" : "s"} — ${t.publishedUrl || "did not ship"}:\n${htmls[i]}`
+        `TEAM ${t.tag} — ${t.seats.length} agent${t.seats.length === 1 ? "" : "s"} — ${t.publishedUrl || "did not ship"}:\n${htmls[i]}`
       ).join("\n\n");
       const prompt =
         `Judge these ${run.teams.length} builds for the brief:\n"${run.prompt}"\n\n${blocks}\n\n` +
@@ -642,7 +786,10 @@ export function createMaxx({ client, tracked, saveState, indexRelay, log, json, 
     verdict: r.verdict ?? null,
     teams: r.teams.map((t) => ({
       tag: t.tag, size: t.size ?? t.seats.length, publishedUrl: t.publishedUrl ?? null,
-      seats: t.seats.map((s) => ({ role: s.role, model: s.model, state: s.state, terminalUrl: s.terminalUrl ?? null })),
+      seats: t.seats.map((s) => ({
+        role: s.role, path: s.path ?? s.role, parent: s.parent ?? null, level: s.level ?? 0, title: s.title ?? s.role,
+        model: s.model, state: s.state, terminalUrl: s.terminalUrl ?? null, answer: s.answer ? s.answer.slice(0, 600) : null,
+      })),
     })),
   });
 
@@ -677,27 +824,14 @@ export function createMaxx({ client, tracked, saveState, indexRelay, log, json, 
       if (!process.env[keyVar]) return json(res, 501, { error: "harness_unconfigured", harness, need: keyVar });
     }
 
-    // Resolve the team layout. Two ways in:
-    //  • new deploy API — { teams: 1|2|4, size: 1|4|12 }. 4 = asymmetric arena
-    //    (sizes 1/4/12/24). `layout` is one seat-def array per team.
-    //  • legacy — a named { team } template, optionally { compete } for 2 teams.
-    let layout, label;
-    const legacy = body.team ? loadTemplate(body.team) : null;
-    if (body.team && !legacy)
-      return json(res, 400, { error: "unknown_team", have: listTemplates().map((t) => t.name) });
-    if (legacy) {
-      const n = body.compete === true ? 2 : 1;
-      layout = Array.from({ length: n }, () => legacy.seats);
-      label = legacy.name;
-    } else {
-      const teamsReq = [1, 2].includes(Number(body.teams)) ? Number(body.teams) : 1;
-      const size = TEAM_SIZES.includes(Number(body.size)) ? Number(body.size) : 4;
-      layout = Array.from({ length: teamsReq }, () => rosterSeats(size));
-      label = teamsReq > 1 ? `arena-${teamsReq} · ${size} each` : `solo · ${size}`;
-    }
-    const teamCount = layout.length;
+    // Teams (1 solo, 2 head-to-head) and each team's agent budget. A team starts
+    // as one agent and grows only as its agents split, up to that budget.
+    const teamCount = [1, 2].includes(Number(body.teams)) ? Number(body.teams) : 1;
+    const size = TEAM_SIZES.includes(Number(body.size)) ? Number(body.size) : 4;
+    const label = teamCount > 1 ? `arena-${teamCount} · up to ${size} each` : `solo · up to ${size}`;
     const compete = teamCount > 1;
-    const totalSeats = layout.reduce((n, s) => n + s.length, 0);
+    // Reserve the whole budget up front, so a pyramid never splits into a full workspace.
+    const totalSeats = teamCount * size;
 
     // Capacity: seats need one VM each (max_concurrent_jobs); each team ships one
     // app = one preview URL. Check both, leaving headroom for other traffic.
@@ -724,20 +858,17 @@ export function createMaxx({ client, tracked, saveState, indexRelay, log, json, 
     if (teamCount > previewMax - previewUsed - PV_RESERVED)
       return json(res, 503, { error: "capacity", kind: "previews", need: teamCount, free: Math.max(0, previewMax - previewUsed - PV_RESERVED), previewMax, previewUsed, note: "each team ships one app (one preview URL)" });
 
-    const mkTeam = (seatDefs, idx) => ({
-      tag: TAGS[idx], size: seatDefs.length, publishedUrl: null,
-      seats: assignModels(seatDefs, mode, idx * 2, harness, provider).map((model, i) => ({
-        role: seatDefs[i].role, duty: seatDefs[i].duty, model,
-        state: "pending", id: null, terminalUrl: null,
-      })),
-    });
     const runId = crypto.randomBytes(6).toString("hex");
-    runs[runId] = {
+    const run = runs[runId] = {
       id: runId, template: label, prompt, repoUrl, mode, compete, harness, provider,
       state: "launching", createdAt: Date.now(), deadline: Date.now() + DEFAULT_DEADLINE_MS,
-      verdict: null,
-      teams: layout.map(mkTeam),
+      verdict: null, teams: [],
     };
+    for (let i = 0; i < teamCount; i++) {
+      const team = { tag: TAGS[i], size, publishedUrl: null, seats: [] };
+      team.seats.push(newSeat(run, team, { path: "r", parent: null, level: 0, title: "lead", prompt }));
+      run.teams.push(team);
+    }
     save();
     launchRun(runs[runId]).catch((e) => log("maxx_bg_failed", { runId, message: e.message }));
     return json(res, 201, publicRun(runs[runId]));
@@ -758,7 +889,7 @@ export function createMaxx({ client, tracked, saveState, indexRelay, log, json, 
     const kept = [];
     const toKill = [];
     for (const team of r.teams) for (const s of team.seats) {
-      if (!s.id) continue;
+      if (!s.id || s.state === "done") continue;    // reported sub-agents are already gone
       if (s.published && !releaseAll) { s.state = "shipped"; if (team.publishedUrl) kept.push(team.publishedUrl); continue; }
       toKill.push(s.id);
       s.state = "stopped";        // reflect immediately so the UI count is right
@@ -784,6 +915,7 @@ export function createMaxx({ client, tracked, saveState, indexRelay, log, json, 
       const toKill = [];
       for (const team of r.teams) for (const s of team.seats) {
         if (s.published) { s.state = "shipped"; continue; }
+        if (s.state === "done") continue;
         if (s.id) { toKill.push(s.id); delete tracked[s.id]; }
         s.state = "ended";
       }
@@ -919,8 +1051,9 @@ export function createMaxx({ client, tracked, saveState, indexRelay, log, json, 
       if (b64.length > 1_500_000) return json(res, 413, { error: "workdir_too_large" });
 
       const targets = [];
+      // Only each team's lead carries on; sub-agents that already reported are gone.
       for (const team of r.teams) for (const seat of team.seats) {
-        if (!seat.id || seat.id === source.id) continue;
+        if (!seat.id || seat.id === source.id || seat.parent || DONE.has(seat.state)) continue;
         targets.push({ team, seat });
       }
       // Replace every other seat's tree with the winner's.
@@ -944,11 +1077,12 @@ export function createMaxx({ client, tracked, saveState, indexRelay, log, json, 
       const note =
         `ROUND ${round}. Team ${tag}'s build was chosen as the current best and is now in /home/tenki/work ` +
         `(your previous work there has been replaced). Improve it — make it genuinely better, not merely different. ` +
+        `You may split the improvements across sub-agents again with tenki-split if your team has agents left. ` +
         (feedback ? `The user's feedback: "${feedback}". Address it directly. ` : "") +
         `When it is ready, run: tenki-serve ${APP_PORT} /home/tenki/work then tenki-publish ${APP_PORT}, and print the URL.`;
       let told = 0;
       await Promise.all(r.teams.flatMap((team) => team.seats.map(async (seat) => {
-        if (!seat.id) return;
+        if (!seat.id || seat.parent || DONE.has(seat.state)) return;
         try {
           const t = await client.get(seat.id);
           if (t.state !== "RUNNING") return;
@@ -973,8 +1107,6 @@ export function createMaxx({ client, tracked, saveState, indexRelay, log, json, 
       r.picking = false; save();
     }
   }
-
-  const templates = (res) => json(res, 200, { templates: listTemplates() });
 
   // Called by the broker when a sandbox exposes a port: record the shipped app
   // as its team's deliverable, then judge once both teams are in.
@@ -1002,5 +1134,5 @@ export function createMaxx({ client, tracked, saveState, indexRelay, log, json, 
     }
   }
 
-  return { start, get, stop, templates, watch, say, pick, notifyExpose, sweep, gallery, warmVisit, warmGet };
+  return { start, get, stop, watch, say, pick, split, wait, report, notifyExpose, sweep, gallery, warmVisit, warmGet };
 }

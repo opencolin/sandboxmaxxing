@@ -3,7 +3,7 @@
 ## Project Structure
 
 - `index.html` is the self-contained static front end; there is no front-end build step.
-- `broker/` contains the Node.js ES module service. `broker/broker.js` serves the site and APIs; `broker/maxx.js` runs agent teams. `broker/teams/*.json` holds team rosters, and `broker/seat/` contains seat utilities.
+- `broker/` contains the Node.js ES module service. `broker/broker.js` serves the site and APIs; `broker/maxx.js` runs agent teams as pyramids (one lead that splits work into sub-agents), and `broker/seat/` contains seat utilities.
 - `skills/` contains reusable agent skills. `design-maxx/` holds design exports. `deploy/` contains deployment configuration.
 - `README.md`, `PRD.md`, and `HANDOFF.md` describe the product, requirements, and deployment state.
 
@@ -16,11 +16,11 @@
 
 ## Style and Data Conventions
 
-Use plain JavaScript ES modules, two-space indentation, double-quoted strings, and semicolons, matching the existing broker files. Name JavaScript variables and functions in `camelCase`; use uppercase for constants. Keep team templates valid JSON in `broker/teams/`, following the existing seat schema. Keep the front end self-contained unless a change clearly requires new assets or tooling.
+Use plain JavaScript ES modules, two-space indentation, double-quoted strings, and semicolons, matching the existing broker files. Name JavaScript variables and functions in `camelCase`; use uppercase for constants. Keep the front end self-contained unless a change clearly requires new assets or tooling.
 
 ## Verification
 
-For broker changes, run the syntax checks above and start the service when configuration is available. For UI changes, open `index.html` and inspect the affected desktop and mobile layouts. Validate edited team templates with a JSON parser. No automated test suite or coverage threshold is currently configured.
+For broker changes, run the syntax checks above and start the service when configuration is available. For UI changes, open `index.html` and inspect the affected desktop and mobile layouts. No automated test suite or coverage threshold is currently configured.
 
 ## Commits and Pull Requests
 
