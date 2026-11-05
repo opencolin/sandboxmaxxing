@@ -209,11 +209,11 @@ the public internet directly, in two steps:
 - The published URL lives as long as this sandbox does.
 `;
 
-async function readJson(req) {
+async function readJson(req, limit = 4096) {
   let raw = "";
   for await (const chunk of req) {
     raw += chunk;
-    if (raw.length > 4096) return {};
+    if (raw.length > limit) return {};
   }
   try { return JSON.parse(raw); } catch { return {}; }
 }
@@ -911,7 +911,7 @@ function serveStatic(req, res) {
 // can create sandboxes, keep them in `tracked` (expose + reaper still see
 // them), and answer over the same HTTP server.
 const maxx = createMaxx({
-  client, tracked, saveState, indexRelay, log, json, readJson, terminateSession,
+  client, tracked, saveState, indexRelay, log, json, readJson, terminateSession, tokenEq,
   brokerUrl: BROKER_PUBLIC_URL, opencodeUpgrade: OPENCODE_UPGRADE,
 });
 
@@ -934,8 +934,14 @@ http.createServer(async (req, res) => {
       if (req.method === "GET") return maxx.warmGet(res);
     }
     if (seg[0] === "api" && seg[1] === "maxx") {
+      // A seat's own calls (split / wait / report), authenticated by its expose token.
+      if (seg[2] === "seat" && seg.length === 5) {
+        if (req.method === "POST" && seg[4] === "split") return await maxx.split(req, res, seg[3]);
+        if (req.method === "GET" && seg[4] === "wait") return maxx.wait(req, res, seg[3]);
+        if (req.method === "POST" && seg[4] === "report") return await maxx.report(req, res, seg[3]);
+        return json(res, 404, { error: "not_found" });
+      }
       if (req.method === "POST" && seg.length === 2) return await maxx.start(req, res);
-      if (req.method === "GET" && seg.length === 2) return maxx.templates(res);
       if (req.method === "GET" && seg.length === 3) return await maxx.get(res, seg[2]);
       if (req.method === "DELETE" && seg.length === 3) return await maxx.stop(res, seg[2], new URL(req.url, "http://x").searchParams.get("all") === "1");
       if (req.method === "POST" && seg.length === 4 && seg[3] === "watch") return await maxx.watch(req, res, seg[2]);

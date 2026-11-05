@@ -281,7 +281,7 @@ tenki sandbox write --session $HOST --path /home/tenki/site/index.html      --da
 tenki sandbox write --session $HOST --path /home/tenki/broker/broker.js     --data-file broker/broker.js
 tenki sandbox write --session $HOST --path /home/tenki/broker/maxx.js       --data-file broker/maxx.js
 tenki sandbox write --session $HOST --path /home/tenki/broker/package.json  --data-file broker/package.json
-# + broker/teams/*.json, broker/seat/websearch-mcp.js, and .env
+# + broker/seat/websearch-mcp.js and .env
 # + the published skill (the homepage links to sandboxmaxxing.com/skill.md):
 tenki sandbox exec  --session $HOST -- bash -lc 'mkdir -p /home/tenki/site/skill'
 tenki sandbox write --session $HOST --path /home/tenki/site/skill.md                  --data-file skills/sandboxmaxxing/SKILL.md
@@ -336,9 +336,9 @@ the `.us.` form, including for `BROKER_PUBLIC_URL`.
 - **`broker/broker.js`** — serves the site, mints demo sandboxes, exposes ports, and runs
   the **relay**: a reverse proxy holding the real API keys so sandboxes never see them.
   Each seat gets a scoped, call-capped, revocable per-session token instead.
-- **`broker/maxx.js`** — the arena: team layout, per-harness seat launch, rounds, judging.
-- **`broker/teams/*.json`** — rosters as data. `full-24.json` is canonical; a team of N takes
-  the first N seats (architect always seat 0).
+- **`broker/maxx.js`** — the arena: agent pyramids, per-harness seat launch, rounds, judging.
+  A team starts as one agent; agents split work into sub-agents (`tenki-split` / `tenki-wait` /
+  `tenki-report`) up to the team's size budget. See SANDBOXMAXXING.md.
 - **`broker/seat/websearch-mcp.js`** — MCP shim giving seats web search through the relay.
 
 Relay upstreams are keyed per provider *and per harness* where the model differs
