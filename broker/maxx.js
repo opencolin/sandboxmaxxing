@@ -561,7 +561,9 @@ export function createMaxx({ client, tracked, saveState, indexRelay, log, json, 
       ...setup,
       ...cfgWrite,
       ...seedCfg,
-      `cat > /tmp/prompt.txt <<'PROMPT'\n${seatDuty(run, team, seat)}${repoNote}${webNote}\nPROMPT`,
+      // base64, not a heredoc: prompts are written by users and agents, and a line
+      // matching the heredoc's delimiter would end it and run the rest as shell.
+      `echo ${Buffer.from(`${seatDuty(run, team, seat)}${repoNote}${webNote}\n`).toString("base64")} | base64 -d > /tmp/prompt.txt`,
       // Run the agent's TUI in a detached tmux session (autonomous + attachable),
       // so watch drops into the live agent rather than a log tail. The stock image
       // has no tmux, and apt's mirrors sometimes reset the connection — once that
@@ -632,10 +634,12 @@ export function createMaxx({ client, tracked, saveState, indexRelay, log, json, 
     const no = (error, text) => json(res, 409, { error, text });
     if (r.aborted || !["launching", "running"].includes(r.state)) return no("run_over", "The run is over; finish what you have.");
     if (seat.level >= MAX_DEPTH) return no("too_deep", "You are at the bottom of the pyramid and cannot split. Do the task yourself.");
-    // One split at a time: a seat may split again (e.g. in a later round) once its last sub-agents are done.
+    const body = await readJson(req, 64 * 1024);
+    // One split at a time: a seat may split again (e.g. in a later round) once its
+    // last sub-agents are done. Checked after the await and before any push, so two
+    // concurrent splits from one seat can't both pass with the same snapshot.
     const before = childrenOf(team, seat);
     if (before.some((k) => !DONE.has(k.state))) return no("already_split", "Your sub-agents are still working. Run tenki-wait.");
-    const body = await readJson(req, 64 * 1024);
     const list = Array.isArray(body.subtasks) ? body.subtasks : [];
     const subtasks = list
       .map((t) => ({ title: String(t?.title || "").slice(0, 60).trim(), prompt: String(t?.prompt || "").slice(0, 6000).trim() }))
@@ -677,7 +681,8 @@ export function createMaxx({ client, tracked, saveState, indexRelay, log, json, 
     // The latest split only: earlier rounds' sub-agents were already integrated.
     const kids = () => { const all = childrenOf(team, seat); const gen = all.at(-1)?.gen; return all.filter((k) => k.gen === gen); };
     if (!kids().length) return json(res, 200, { done: true, text: "You have no sub-agents. Do the task yourself." });
-    let gone = false; req.on("close", () => { gone = true; });
+    // res, not req: a request's "close" fires as soon as its (empty) body is read.
+    let gone = false; res.on("close", () => { gone = true; });
     const until = Date.now() + WAIT_BLOCK_MS;
     while (!gone && Date.now() < until && !kids().every((k) => DONE.has(k.state))) await new Promise((f) => setTimeout(f, 3000));
     const all = kids();
@@ -690,6 +695,29 @@ export function createMaxx({ client, tracked, saveState, indexRelay, log, json, 
       done, pending: all.filter((k) => !DONE.has(k.state)).length,
       text: (done ? "All sub-agents have finished. Integrate their parts.\n\n" : `${all.filter((k) => !DONE.has(k.state)).length} of ${all.length} sub-agents still working; run tenki-wait again (keep working meanwhile).\n\n`) + text,
     });
+  }
+
+  // Unpack a work tree (tar.gz, base64) into dir on another seat. Sent in chunks,
+  // since a single exec argument is capped at ~128 KB, and checked before it is
+  // extracted, since an agent built the archive: no absolute or ".." member names
+  // and no links, which could point a later member outside dir.
+  const COPY_CHUNK = 64 * 1024;
+  async function unpackTree(session, b64, dir, replace = false) {
+    const T = `/tmp/tree-${crypto.randomBytes(4).toString("hex")}`;
+    const sh = (cmd, timeoutMs = 30_000) => session.exec("bash", { args: ["-lc", cmd], timeoutMs });
+    if (!b64) return sh(`mkdir -p ${dir}`);
+    await sh(`: > ${T}.b64`);
+    for (let i = 0; i < b64.length; i += COPY_CHUNK) await sh(`printf %s '${b64.slice(i, i + COPY_CHUNK)}' >> ${T}.b64`);
+    const out = await sh([
+      `trap 'rm -f ${T}.b64 ${T}.tgz' EXIT`,
+      `base64 -d < ${T}.b64 > ${T}.tgz && tar tzf ${T}.tgz >/dev/null || { echo BAD; exit 1; }`,
+      `if tar tzf ${T}.tgz | grep -qE '(^/|(^|/)\\.\\.(/|$))' || tar tvzf ${T}.tgz | grep -q '^[lh]'; then echo UNSAFE; exit 1; fi`,
+      replace ? `rm -rf ${dir}/* ${dir}/.[!.]* 2>/dev/null` : ":",
+      `mkdir -p ${dir} && tar xzf ${T}.tgz -C ${dir} --no-same-owner && echo COPIED`,
+    ].join("\n"), 90_000);
+    const said = stdoutText(out);
+    if (said.includes("UNSAFE")) throw new Error("the archive had links or paths outside the work folder, so it was not unpacked");
+    if (!said.includes("COPIED")) throw new Error("unpacking failed");
   }
 
   // POST /api/maxx/seat/:id/report { summary } — a sub-agent hands its work to
@@ -711,12 +739,7 @@ export function createMaxx({ client, tracked, saveState, indexRelay, log, json, 
       const b64 = (stdoutText(out) || "").trim();
       if (b64.length > 1_500_000) throw new Error("work too large to copy (over ~1 MB compressed)");
       if (!parent?.id) throw new Error("parent sandbox is gone");
-      const dst = await client.get(parent.id);
-      const dir = `/home/tenki/work/${partDir(seat)}`;
-      await dst.exec("bash", {
-        args: ["-lc", `mkdir -p ${dir} && ${b64 ? `echo ${b64} | base64 -d | tar xzf - -C ${dir} && ` : ""}echo COPIED`],
-        timeoutMs: 90_000,
-      });
+      await unpackTree(await client.get(parent.id), b64, `/home/tenki/work/${partDir(seat)}`);
     } catch (e) {
       answer += `\n\n(Its files could not be copied to you: ${e.message}. Rebuild what you need from this summary.)`;
       log("maxx_report_copy_failed", { runId: r.id, seat: seat.path, message: e.message });
@@ -1062,12 +1085,7 @@ export function createMaxx({ client, tracked, saveState, indexRelay, log, json, 
         try {
           const t = await client.get(seat.id);
           if (t.state !== "RUNNING") return;
-          await t.exec("bash", {
-            args: ["-lc",
-              `mkdir -p /home/tenki/work && rm -rf /home/tenki/work/* /home/tenki/work/.[!.]* 2>/dev/null; ` +
-              `echo ${b64} | base64 -d | tar xzf - -C /home/tenki/work && echo COPIED`],
-            timeoutMs: 90_000,
-          });
+          await unpackTree(t, b64, "/home/tenki/work", true);
           copied++;
         } catch (e) { log("maxx_pick_copy_failed", { runId, role: seat.role, message: e.message }); }
       }));
