@@ -329,8 +329,7 @@ for (const [id, v] of Object.entries(tracked)) {
 const saveState = () => fs.writeFileSync(STATE_FILE, JSON.stringify(tracked));
 
 // relayToken -> sessionId (the id isn't in the relay URL — kimirelay owns the path).
-// Rebuilt from `tracked` on load and kept in sync on create/destroy/reap. In-flight
-// counters are ephemeral and reset to 0 here rather than being persisted.
+// Rebuilt from `tracked` on load and kept in sync on create/destroy/reap.
 const relayTokens = new Map();
 const indexRelay = () => {
   relayTokens.clear();
