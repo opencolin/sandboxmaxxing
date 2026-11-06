@@ -165,8 +165,9 @@ export function createMaxx({ client, tracked, saveState, indexRelay, log, json, 
     if (want) lines.push(
       `\nThis team was started with ${team.size} agents and whoever started it expects to see them working, so you must delegate, however small the task looks. ` +
       `Your FIRST action, before writing any code, is to divide the task into exactly ${want} independent part${want === 1 ? "" : "s"} and start ${want === 1 ? "a sub-agent" : "that many sub-agents"}:\n` +
-      `tenki-split <<'EOF'\n[{"title": "2 to 4 words", "prompt": "a complete, self-contained prompt"}]\nEOF\n` +
-      `Each sub-agent gets a sandbox of its own, sees ONLY its own prompt (so include every detail it needs: file names, interfaces, style), and works in parallel. ` +
+      `tenki-split <<'EOF'\n[{"title": "2 to 4 words", "prompt": "a self-contained prompt of 2 to 5 sentences"}]\nEOF\n` +
+      `Run it within your first minute: do not plan the whole build first, since people are watching the machines start. ` +
+      `Each sub-agent gets a sandbox of its own, sees ONLY its own prompt (so name its files, interfaces and style, briefly), and works in parallel. ` +
       `tenki-split says how many agents your team has left; if it refuses, do the work yourself. Split once, then keep working on your own part meanwhile.\n` +
       `Then run tenki-wait. It returns after about 90 seconds or once every sub-agent has reported, prints each one's summary, and puts its files in /home/tenki/work/parts/<n>-<title>/. ` +
       `Run it again until it says all are done, then integrate the parts into one working result. If a sub-agent fails or stalls, do its part yourself.`);

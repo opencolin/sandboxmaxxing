@@ -256,6 +256,14 @@ on the old 1 GB seats the kernel OOM-killed it seconds into every run — the te
 `[exited]`, and an upstream 503 in its log was a red herring. Demo machines use the same size.
 If an agent dies early, check `sudo dmesg | grep -i "out of memory"` on the seat first.
 
+## The 3D pyramid
+
+Machines' **Grid** tab shows each team as a 3D pyramid on a canvas (`pyr*` in `index.html`): one
+cube per agent in a stepped grid of 1, 2×2, 4×4 and 8×8, colored by state, with slots the team
+can still fill as outlines. A seat's `path` gives its cell, so there is no layout state. It
+rotates, drags, and clicking a cube opens that machine in the Theater. Runs with more than one
+agent open on it; a single agent opens on its terminal.
+
 ## Rebuild runbook (the thing you will actually need)
 
 The host dies periodically and the session scratchpad is wiped between sessions, so this is

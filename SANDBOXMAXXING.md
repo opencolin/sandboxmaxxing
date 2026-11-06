@@ -32,8 +32,12 @@ A team starts as **one agent** holding the prompt. Every agent runs the same loo
 4. The parent integrates the parts. The root publishes with
    `tenki-serve` + `tenki-publish`, as before.
 
-The team **size** (1 / 4 / 12 / 24 on the deploy page) is a budget: the most agents
-the pyramid may grow to, root included. Size 1 never splits. `start` reserves
+The team **size** (1 / 4 / 12 / 24 on the deploy page) is what the pyramid fills to,
+root included. Size 1 never splits. Above that, splitting is mandatory: told it *may*
+split, a capable lead builds anything small alone and the run uses one sandbox. Each seat
+has a `share` (the lead's is the team), a split divides it among the children, and a seat
+with a share above 1 must split, so a team reaches exactly 1, 4, 12 or 24 agents.
+The first split takes the lead 1 to 3 minutes of model time, so sub-agents appear then. `start` reserves
 the whole budget against VM capacity up front. Seats are tree nodes
 (`path` `r`, `r.0`, `r.0.2`, with `parent`, `level`, `title`, `prompt` and `answer`), and
 `seat.role` equals the path, so watch/say still address seats by `{team, role}`.
