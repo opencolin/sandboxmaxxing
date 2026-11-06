@@ -18,6 +18,7 @@ import {
   stdoutText,
 } from "@tenkicloud/sandbox";
 import { createMaxx } from "./maxx.js";
+import { tidyKey, sealKey, openKey, sealReady, keyId } from "./ownkey.js";
 
 const BROKER_DIR = path.dirname(new URL(import.meta.url).pathname);
 // .env: KEY=VALUE lines; kept out of the static tree so it can never be served
@@ -37,6 +38,9 @@ const DEMO_DURATION_MS = 60 * 60 * 1000;
 // Agents run in demo machines too, and opencode 1.19 alone needs ~840 MB: at 1 GB
 // the kernel OOM-killed it. Same size as arena seats (maxx.js).
 const DEMO_MEMORY_MB = Number(process.env.MAXX_SEAT_MEMORY_MB || 2048);
+// What visitors' machines boot: a public image with tmux and every agent installed, so
+// they start in about a second with nothing to set up. Its floor is 2 vCPU / 4 GiB.
+const OWN_IMAGE = process.env.MAXX_OWN_IMAGE || "03q08p/agentcamp-golden:v2026-10-14";
 const IDLE_TIMEOUT_MINUTES = 10;
 // must be a platform-allowed preview port; 7681 (ttyd default) is rejected
 const TTYD_PORT = Number(process.env.TTYD_PORT || 8080);
@@ -222,13 +226,64 @@ const client = new TenkiSandbox({ authToken: process.env.TENKI_API_KEY });
 // After moving the broker to another workspace, sessions it created before the move
 // (kept apps, demos still in their hour) live on in the old one. TENKI_LEGACY_API_KEY
 // lets it keep finding — and reaping — them there. Optional; drop it once they're gone.
-if (process.env.TENKI_LEGACY_API_KEY) {
-  const legacy = new TenkiSandbox({ authToken: process.env.TENKI_LEGACY_API_KEY });
-  const getHere = client.get.bind(client);
-  client.get = async (id) => {
-    try { return await getHere(id); }
-    catch (e) { if (e instanceof SessionNotFoundError) return legacy.get(id); throw e; }
-  };
+const legacy = process.env.TENKI_LEGACY_API_KEY ? new TenkiSandbox({ authToken: process.env.TENKI_LEGACY_API_KEY }) : null;
+
+// Visitors' own machines (ownkey.js). ownOf maps a session to its sealed key and outlives
+// its `tracked` entry, because seats are untracked just before they are terminated. Every
+// lookup below goes through client.get, so a visitor's machine reaches their workspace
+// wherever the broker touches it: watch, the reaper, a stop.
+const ownOf = new Map();
+const ownClients = new Map();
+function ownClient(sealed) {
+  let c = ownClients.get(sealed);
+  if (!c) {
+    const authToken = openKey(sealed);
+    if (!authToken) throw new Error("a visitor's key could not be unsealed");
+    c = new TenkiSandbox({ authToken });
+    ownClients.set(sealed, c);
+  }
+  return c;
+}
+const getHouse = client.get.bind(client);
+const updateHouse = client.updateSession.bind(client);
+client.get = async (id) => {
+  if (ownOf.has(id)) return ownClient(ownOf.get(id)).get(id);
+  try { return await getHouse(id); }
+  catch (e) { if (legacy && e instanceof SessionNotFoundError) return legacy.get(id); throw e; }
+};
+client.updateSession = (id, options) =>
+  ownOf.has(id) ? ownClient(ownOf.get(id)).updateSession(id, options) : updateHouse(id, options);
+
+// Machines need the visitor's key unless KEY_REQUIRED=false. Returns the key, "" for a
+// house machine, or null once it has answered the request itself.
+const KEY_REQUIRED = process.env.KEY_REQUIRED !== "false";
+function visitorKey(req, res) {
+  const key = tidyKey(req.headers["x-visitor-key"]);
+  if (key && !sealReady()) { json(res, 503, { error: "key_sealing_unconfigured" }); return null; }
+  if (key || !KEY_REQUIRED) return key;
+  json(res, 401, { error: "key_required" });
+  return null;
+}
+const badKey = (e) => /unauthenticated|unauthorized|permission|invalid.*(token|key)|\b40[13]\b/i.test(`${e.code ?? ""} ${e.message ?? ""}`);
+const noBalance = (e) => /balance/i.test(e.message || "");
+
+// POST /api/key: is this a working Tenki key? The gate asks before it lets a visitor in.
+const keyChecks = new Map();
+async function checkKey(req, res) {
+  const ipHash = hashIp(ipOf(req)), now = Date.now();
+  const recent = (keyChecks.get(ipHash) || []).filter((t) => now - t < 3600_000);
+  if (recent.length >= 30) return json(res, 429, { error: "rate_limited" });
+  keyChecks.set(ipHash, [...recent, now]);
+  const key = tidyKey(req.headers["x-visitor-key"]);
+  if (!key) return json(res, 400, { error: "bad_key" });
+  try {
+    const usage = await new TenkiSandbox({ authToken: key }).getUsage();
+    return json(res, 200, { ok: true, machines: usage.find((u) => u.key === "max_concurrent_jobs")?.max ?? null });
+  } catch (e) {
+    if (badKey(e)) return json(res, 401, { error: "bad_key" });
+    log("key_check_failed", { message: e.message });
+    return json(res, 502, { error: "check_failed" });
+  }
 }
 
 // Robustly terminate a session. closeIfOpen() SKIPS paused sessions (which is
@@ -254,6 +309,7 @@ async function terminateSession(id) {
  * to or accepted from browsers — the hosting sandbox is unreachable here. */
 let tracked = {}; // id -> {createdAt, ipHash, terminal, exposeToken, relayToken, ...}
 try { tracked = JSON.parse(fs.readFileSync(STATE_FILE, "utf8")); } catch {}
+for (const [id, v] of Object.entries(tracked)) if (v.own) ownOf.set(id, v.own);
 const saveState = () => fs.writeFileSync(STATE_FILE, JSON.stringify(tracked));
 
 // relayToken -> sessionId (the id isn't in the relay URL — kimirelay owns the path).
@@ -295,6 +351,10 @@ const publicSession = (s) => ({
 
 async function createDemoSession(req, res) {
   if (!DEMO_ENABLED) return json(res, 503, { error: "disabled" });
+  const key = visitorKey(req, res);
+  if (key === null) return;
+  const own = key ? sealKey(key) : null, ownId = key ? keyId(key) : null;
+  const tenki = own ? ownClient(own) : client;
   const ipHash = hashIp(ipOf(req));
 
   const now = Date.now();
@@ -302,7 +362,8 @@ async function createDemoSession(req, res) {
   if (recent.length >= MAX_CREATES_PER_IP_PER_HOUR)
     return json(res, 429, { error: "rate_limited" });
 
-  const mine = Object.entries(tracked).filter(([, v]) => v.ipHash === ipHash);
+  // By key where there is one: two people in one office share an IP, not a machine.
+  const mine = Object.entries(tracked).filter(([, v]) => (own ? v.ownId === ownId : v.ipHash === ipHash && !v.ownId));
   if (mine.length >= MAX_PER_IP) {
     // steer the visitor back to their existing sandbox instead of refusing
     const [id] = mine[0];
@@ -314,21 +375,21 @@ async function createDemoSession(req, res) {
     saveState();
   }
 
-  if (Object.keys(tracked).length >= MAX_DEMO)
+  if (!own && Object.keys(tracked).length >= MAX_DEMO)
     return json(res, 503, { error: "capacity" });
   try {
-    const usage = (await client.getUsage()).find((u) => u.key === "max_concurrent_jobs" || u.key === "active_sessions");
+    const usage = (await tenki.getUsage()).find((u) => u.key === "max_concurrent_jobs" || u.key === "active_sessions");
     if (usage?.max !== undefined && usage.current >= usage.max)
       return json(res, 503, { error: "capacity" });
   } catch (e) {
+    if (own && badKey(e)) return json(res, 401, { error: "bad_key" });
     log("usage_check_failed", { message: e.message });
   }
 
   try {
-    const session = await client.create({
+    const session = await tenki.create({
       name: `demo-${crypto.randomBytes(4).toString("hex")}`,
-      cpuCores: 1,
-      memoryMb: DEMO_MEMORY_MB,
+      ...(own ? { image: OWN_IMAGE } : { cpuCores: 1, memoryMb: DEMO_MEMORY_MB }),
       allowInbound: true,
       allowOutbound: true,
       maxDurationMs: DEMO_DURATION_MS,
@@ -336,8 +397,9 @@ async function createDemoSession(req, res) {
       metadata: { demo: "true", source: "landing-page", ip_hash: ipHash },
       waitReady: false,
     });
+    if (own) ownOf.set(session.id, own);
     tracked[session.id] = {
-      createdAt: now, ipHash, terminal: null,
+      createdAt: now, ipHash, terminal: null, ...(own ? { own, ownId } : {}),
       // Per-session secrets: let the sandbox publish its OWN ports (exposeToken)
       // and reach Nebius/Tavily through the broker (relayToken) without ever
       // holding a real key. Never sent to the browser.
@@ -358,6 +420,8 @@ async function createDemoSession(req, res) {
     if (e instanceof QuotaExceededError || e instanceof CapacityUnavailableError)
       return json(res, 503, { error: "capacity" });
     if (e instanceof RateLimitedError) return json(res, 429, { error: "rate_limited" });
+    if (own && noBalance(e)) return json(res, 402, { error: "no_balance" });
+    if (own && badKey(e)) return json(res, 401, { error: "bad_key" });
     log("demo_create_failed", { message: e.message });
     return json(res, 502, { error: "create_failed" });
   }
@@ -911,7 +975,7 @@ function serveStatic(req, res) {
 // can create sandboxes, keep them in `tracked` (expose + reaper still see
 // them), and answer over the same HTTP server.
 const maxx = createMaxx({
-  client, tracked, saveState, indexRelay, log, json, readJson, terminateSession, tokenEq,
+  client, tracked, saveState, indexRelay, log, json, readJson, terminateSession, ownImage: OWN_IMAGE, ownOf, ownClient, visitorKey, sealKey, badKey, noBalance, tokenEq,
   brokerUrl: BROKER_PUBLIC_URL, opencodeUpgrade: OPENCODE_UPGRADE,
 });
 
@@ -929,6 +993,7 @@ http.createServer(async (req, res) => {
       return json(res, 404, { error: "not_found" });
     }
     if (seg[0] === "api" && seg[1] === "gallery" && seg.length === 2 && req.method === "GET") return await maxx.gallery(res);
+    if (seg[0] === "api" && seg[1] === "key" && seg.length === 2 && req.method === "POST") return await checkKey(req, res);
     if (seg[0] === "api" && seg[1] === "warm" && seg.length === 2) {
       if (req.method === "POST") return maxx.warmVisit(res);
       if (req.method === "GET") return maxx.warmGet(res);

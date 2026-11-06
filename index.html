@@ -3,6 +3,12 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<script>
+  /* The site needs the visitor's own Tenki key (see the key gate below). Decided before
+     first paint so the page never flashes unlocked. */
+  try { if (!localStorage.getItem('tenkiKey')) document.documentElement.classList.add('gated'); }
+  catch { document.documentElement.classList.add('gated'); }
+</script>
 <title>ixio — Agent Native Infrastructure</title>
 <script>
 /* Brand by domain. tenki.monster (or ?brand=luxor, for previews) wears Luxor's look, set here
@@ -353,6 +359,7 @@
   .sbx-dot.live { background: #3ecf6a; box-shadow: 0 0 8px rgba(62,207,106,.55); }
   .sbx-dot.busy { background: #e0b34c; animation: sbxPulse 1.2s ease-in-out infinite; }
   .sbx-dot.dead { background: #666; }
+  .sbx-dot.idle { background: #555; }
   @keyframes sbxPulse { 50% { opacity: .3; } }
   .sbx-again {
     background: none; border: none; padding: 0; cursor: pointer;
@@ -540,6 +547,27 @@
   /* phones: stats, view tabs, Stop all and New Machine wrap instead of running off the screen */
   @media (max-width: 640px) { .mx-arena-actions { margin-left: 0; gap: 14px 18px; } }
   .mx-stat { text-align: right; } .mx-stat b { font-family: var(--mono); font-size: 18px; font-weight: 500; display: block; } .mx-stat span { font-family: var(--mono); font-size: 10px; color: #6a6a6a; letter-spacing: .08em; }
+  /* ---------- Key gate ---------- */
+  .key-gate { display: none; position: fixed; inset: 0; z-index: 100; align-items: center; justify-content: center; padding: 16px; background: rgba(0, 0, 0, .55); }
+  .gated .key-gate { display: flex; }
+  .gated nav, .gated main { filter: blur(9px); pointer-events: none; user-select: none; }
+  .key-card { width: min(460px, 100%); border: 1px solid #262626; border-radius: 12px; background: #0a0a0a; overflow: hidden; }
+  .key-bar { display: flex; align-items: center; padding: 12px 18px; border-bottom: 1px solid #1e1e1e; font-size: 14px; color: #c4c4c4; }
+  .key-body { padding: 22px 18px 20px; }
+  .key-body h2 { margin: 0 0 8px; font-size: 24px; letter-spacing: -.02em; }
+  .key-lede { margin: 0 0 20px; color: #a3a3a3; font-size: 15px; line-height: 1.55; }
+  .key-body label { display: block; margin-bottom: 7px; font: 12px var(--mono); color: #c4c4c4; }
+  .key-row { display: flex; gap: 8px; }
+  .key-row input { flex: 1; min-width: 0; padding: 11px 12px; border: 1px solid #2a2a2a; border-radius: 8px; background: #050505; color: var(--fg); font: 14px var(--mono); outline: none; }
+  .key-row input:focus { border-color: var(--sand); }
+  .key-row .btn { padding: 10px 18px; font-size: 14px; flex: none; }
+  .key-bad { margin: 9px 0 0; color: #e0906c; font-size: 13px; }
+  .key-note { margin: 14px 0 0; color: #8f8f8f; font-size: 13px; line-height: 1.6; }
+  .key-note a { color: var(--fg); }
+  .key-chip { position: fixed; right: 16px; bottom: 16px; z-index: 40; padding: 7px 12px; border: 1px solid #1e1e1e; border-radius: 10px; background: rgba(10, 10, 10, .88);
+              color: #8f8f8f; font: 11.5px/1.5 var(--mono); }
+  .key-chip[hidden], .warm-status[hidden] { display: none; }
+  .key-chip button { padding: 0; border: 0; background: none; color: var(--sand); font: inherit; cursor: pointer; }
   .mx-pyr { position: relative; height: 540px; margin-bottom: 16px; border: 1px solid #1e1e1e; border-radius: 14px; background: #060606; overflow: hidden; }
   .mx-pyr canvas { display: block; width: 100%; height: 100%; cursor: grab; touch-action: pan-y; }
   .mx-pyr canvas:active { cursor: grabbing; }
@@ -715,8 +743,27 @@
   </div>
 </nav>
 
+<div class="key-gate" id="keyGate" role="dialog" aria-modal="true" aria-labelledby="keyGateTitle">
+  <div class="key-card">
+    <div class="key-bar">Your Tenki key</div>
+    <form class="key-body" onsubmit="keyGateSubmit(event)">
+      <h2 id="keyGateTitle"><span class="b-ixio">sandboxmaxxing</span><span class="b-lx">tenki.monster</span></h2>
+      <p class="key-lede">Race coding agents on Linux machines of your own, in your own Tenki workspace, on your API key.</p>
+      <label for="keyInput">your Tenki API key</label>
+      <div class="key-row">
+        <input id="keyInput" type="password" autocomplete="off" spellcheck="false" placeholder="tk_…" aria-describedby="keyBad">
+        <button type="submit" class="btn btn-primary" id="keyGo">start →</button>
+      </div>
+      <p class="key-bad" id="keyBad" hidden></p>
+      <p class="key-note">No key yet? <a href="https://app.tenki.cloud" target="_blank" rel="noopener">Create one at app.tenki.cloud</a>: Tenki Sandbox, then API Keys.
+        Your key is saved in this browser. To run your machines our server keeps it encrypted while they're up, and they run on your own balance.</p>
+    </form>
+  </div>
+</div>
+
 <!-- ============ HERO ============ -->
 <main id="view-hero">
+  <div class="key-chip" id="keyChip" hidden>Tenki key <span id="keyTail"></span> · <button type="button" onclick="forgetKey()">forget</button></div>
   <!-- Debug: the broker's warm-machine pool (see /api/warm). Fixed, homepage only. -->
   <button type="button" class="warm-status" id="warmStatus" onclick="this.classList.toggle('open')" aria-label="Warm machine status">
     <span class="warm-line"><span class="warm-dot"></span><span id="warmText">machines: checking…</span></span>
@@ -1192,6 +1239,50 @@ tenki sandbox ssh --session my-box</div>
 <script>
 /* ================= view switching ================= */
 const heroEl = document.getElementById('view-hero');
+
+/* The key gate: machines run in the visitor's own Tenki workspace. The key is kept in this
+   browser and sent in a header only when starting a machine; ownkey.js says what the
+   broker does with it. */
+let tenkiKey = '';
+try { tenkiKey = localStorage.getItem('tenkiKey') || ''; } catch {}
+const tenkiHeaders = (h = {}) => (tenkiKey ? { ...h, 'x-visitor-key': tenkiKey } : h);
+function keyGateOpen(msg) {
+  document.documentElement.classList.add('gated');
+  document.querySelectorAll('nav, main').forEach(el => { el.inert = true; });
+  const bad = document.getElementById('keyBad');
+  bad.hidden = !msg; bad.textContent = msg || '';
+  document.getElementById('keyInput').focus();
+}
+function keyGateClose() {
+  document.documentElement.classList.remove('gated');
+  document.querySelectorAll('nav, main').forEach(el => { el.inert = false; });
+  document.getElementById('keyChip').hidden = !tenkiKey;
+  document.getElementById('keyTail').textContent = '····' + tenkiKey.slice(-4);
+}
+async function keyGateSubmit(e) {
+  e.preventDefault();
+  const input = document.getElementById('keyInput'), go = document.getElementById('keyGo'), bad = document.getElementById('keyBad');
+  const key = input.value.trim().replace(/^["']|["']$/g, '').trim();
+  const say = m => { bad.hidden = false; bad.textContent = m; };
+  if (!/^tk_[A-Za-z0-9_-]{8,200}$/.test(key)) return say('That isn’t a Tenki key. One starts with tk_.');
+  bad.hidden = true; go.disabled = true;
+  try {
+    const r = await fetch('/api/key', { method: 'POST', headers: { 'x-visitor-key': key } });
+    if (r.ok) {
+      tenkiKey = key; input.value = '';
+      try { localStorage.setItem('tenkiKey', key); } catch {}
+      keyGateClose();
+    } else say(r.status === 401 ? 'Tenki didn’t accept that key. Check it at app.tenki.cloud.'
+      : r.status === 429 ? 'Too many tries. Wait a bit and try again.' : 'Couldn’t check the key. Try again.');
+  } catch { say('Couldn’t reach the server. Try again.'); }
+  go.disabled = false;
+}
+function forgetKey(msg) {
+  tenkiKey = '';
+  try { localStorage.removeItem('tenkiKey'); } catch {}
+  document.getElementById('keyChip').hidden = true;
+  keyGateOpen(msg);
+}
 const deployEl = document.getElementById('view-deploy');
 const maxxEl = document.getElementById('view-maxx');
 function showDeploy() {
@@ -1201,7 +1292,7 @@ function showDeploy() {
   deployEl.classList.add('fade-in');
   window.scrollTo(0, 0);
   if (location.hash !== '#deploy') history.replaceState(null, '', '#deploy');
-  ensureDemoSession();
+  sbxIdle();
 }
 function showHero() {
   deployEl.style.display = 'none'; maxxEl.style.display = 'none';
@@ -1504,7 +1595,7 @@ const termBtn = () => document.getElementById('openTerminalBtn');
 function sbxStatus(kind, html) {
   sbxDot().className = 'sbx-dot ' + kind;
   sbxText().innerHTML = html;
-  const off = kind !== 'live';
+  const off = kind !== 'live' && kind !== 'idle';
   termBtn().disabled = off;
   document.getElementById('openCodeBtn').disabled = off;
   // In sandboxmaxxing mode the Build button launches its own seat sandboxes, so
@@ -1536,7 +1627,7 @@ function sbxApply(b) {
   const short = 'sbx-' + (b.id || '').slice(0, 8);
   if (b.state === 'RUNNING') {
     const mins = Math.max(1, Math.round((new Date(b.timeoutAt) - Date.now()) / 60000));
-    sbxStatus('live', `running · ${short} · 1 vCPU / 1 GB · turns to sand in ${mins}m · <button class="sbx-again" onclick="selfDestruct()">self-destruct ⌁</button>`);
+    sbxStatus('live', `running · ${short} · 2 vCPU / 4 GB · turns to sand in ${mins}m · <button class="sbx-again" onclick="selfDestruct()">self-destruct ⌁</button>`);
     sbxSchedule(30000);
   } else if (b.state === 'CREATING' || b.state === 'RESUMING') {
     sbxStatus('busy', `spinning up ${short}…`);
@@ -1559,13 +1650,27 @@ async function refreshDemoSession() {
   } catch { sbxStatus('dead', 'demo API unreachable'); return true; }
 }
 
+// The visitor pays for this machine, so it starts when they ask for one, not on page view.
+async function sbxIdle() {
+  if (sbx.creating) return;
+  if (!sbx.id || !await refreshDemoSession()) sbxStatus('idle', 'no machine yet · one starts when you press Start');
+}
+async function sbxReady() {
+  if (sbx.id && sbx.state === 'RUNNING') return true;
+  await ensureDemoSession();
+  for (let i = 0; i < 40 && sbx.id && sbx.state !== 'RUNNING'; i++) {
+    await new Promise(f => setTimeout(f, 1000));
+    await refreshDemoSession();
+  }
+  return !!sbx.id && sbx.state === 'RUNNING';
+}
 async function ensureDemoSession() {
   if (sbx.creating) return;
   if (sbx.id && await refreshDemoSession()) return;
   sbx.creating = true;
   sbxStatus('busy', 'requesting a sandbox…');
   try {
-    const r = await fetch(SBX_API, { method: 'POST' });
+    const r = await fetch(SBX_API, { method: 'POST', headers: tenkiHeaders() });
     if (r.ok) {
       const b = await r.json();
       sbx.id = b.id; sessionStorage.setItem('sbxId', b.id);
@@ -1575,6 +1680,11 @@ async function ensureDemoSession() {
       sbxStatus('dead', b.error === 'capacity'
         ? 'demo at capacity — sandboxes turn to sand within minutes, try again shortly'
         : 'live demo is switched off right now');
+    } else if (r.status === 401) {
+      sbxStatus('dead', 'Tenki didn’t accept your key');
+      forgetKey('Tenki didn’t accept that key. Enter a working one to start a machine.');
+    } else if (r.status === 402) {
+      sbxStatus('dead', 'your Tenki workspace has no balance · <a href="https://app.tenki.cloud" target="_blank" rel="noopener" style="color:inherit;">top it up</a>');
     } else if (r.status === 429) {
       sbxStatus('dead', 'that’s a lot of sandboxes — take a breather, try again in a bit');
     } else {
@@ -1590,10 +1700,10 @@ async function ensureDemoSession() {
 // VS Code (code-server) in the live sandbox. The broker answers 202 while it installs
 // code-server on an image that lacks it, so keep asking until the URL arrives.
 async function openCode(btn) {
-  if (sbx.state !== 'RUNNING' || !sbx.id) return;
   const orig = btn.textContent;
   btn.disabled = true; btn.textContent = 'Opening…';
   const win = window.open('', '_blank'); // inside the click gesture so popup blockers allow it
+  if (!await sbxReady()) { if (win) win.close(); btn.disabled = false; btn.textContent = orig; return; }
   if (win) win.document.write('<title>VS Code</title><body style="margin:0;height:100vh;display:grid;place-items:center;background:#0a0a0a;color:#9a9a9a;font:14px system-ui">Starting VS Code in your sandbox…</body>');
   try {
     for (let i = 0; i < 80; i++) {            // ~4 minutes at 3s: a first install takes 1-2
@@ -1615,13 +1725,13 @@ async function openCode(btn) {
   }
 }
 async function openTerminal(agent, el, prompt) {
-  if (sbx.state !== 'RUNNING' || !sbx.id) return;
   const btn = el || termBtn();
   const hasSvg = !!btn.querySelector('svg'); // agent pills keep their markup
   const orig = btn.textContent;
   btn.disabled = true;
   if (!hasSvg) btn.textContent = agent ? 'Starting…' : 'Opening…';
   const win = window.open('', '_blank'); // opened inside the click gesture so popup blockers allow it
+  if (!await sbxReady()) { if (win) win.close(); btn.disabled = false; if (!hasSvg) btn.textContent = orig; return; }
   try {
     const r = await fetch(`${SBX_API}/${sbx.id}/terminal`, {
       method: 'POST',
@@ -2362,6 +2472,7 @@ function mxCapacityError(data) {
     return `Not enough sandboxes free — this run needs ${data.need}, only ${data.free} available (of ${data.vmMax}). Try fewer agents/teams.`;
   if (data.error === 'capacity')
     return `Not enough preview URLs free — needs ${data.need}, ${data.free ?? data.freePreviews} available.`;
+  if (data.error === 'bad_key' || data.error === 'key_required') return 'A working Tenki key is needed to start a machine.';
   if (data.error === 'bad_repo') return 'That repo must be a public https git URL.';
   if (data.error === 'relay_unconfigured') return 'Claude, Codex, and Frontier route through the relay — its keys aren’t set on this broker yet.';
   if (data.error === 'harness_unconfigured') return `${data.harness} needs ${data.need} set on the broker (it has no free tier). Opencode works without a key.`;
@@ -2371,8 +2482,9 @@ function mxCapacityError(data) {
 // Shared launcher: POST a run, then switch to the arena and start polling.
 // Returns { ok, data } so each caller can restore its own button on failure.
 async function mxBeginRun(body, promptText) {
-  const r = await fetch(MX_API, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+  const r = await fetch(MX_API, { method: 'POST', headers: tenkiHeaders({ 'content-type': 'application/json' }), body: JSON.stringify(body) });
   const data = await r.json();
+  if (r.status === 401) forgetKey('Tenki didn’t accept that key. Enter a working one to start a machine.');
   if (!r.ok) return { ok: false, data };
   mxOpenRun(data, promptText, Date.now());
   return { ok: true, data };
@@ -2879,7 +2991,10 @@ async function mxEnsureTerminal() {
   const sub = document.getElementById('mxStageSub');
   if (seat.state === 'failed') {
     mx.failedKey = key; sub.textContent = '';
-    empty.style.display = 'flex'; empty.innerHTML = '<span style="color:#e0906c;">This agent’s machine failed to start.</span>';
+    empty.style.display = 'flex';
+    empty.innerHTML = '<span style="color:#e0906c;">' + (seat.noBalance
+      ? 'Your Tenki workspace has no balance. <a href="https://app.tenki.cloud" target="_blank" rel="noopener" style="color:inherit;">Top it up at app.tenki.cloud</a>, then try again.'
+      : 'This agent’s machine failed to start.') + '</span>';
     return;
   }
   if (!['running', 'RUNNING', 'waiting', 'published', 'shipped'].includes(seat.state)) return mxBootStep('Creating the machine…');
@@ -3047,6 +3162,7 @@ function warmPing() { fetch(WARM_API, { method: 'POST' }).then(r => r.json()).th
 function warmShow(w) {
   const el = document.getElementById('warmStatus');
   if (!el || !w) return;
+  el.hidden = !w.target;
   const err = w.lastError && w.lastError.secsAgo < 120;
   el.dataset.s = err ? 'error' : w.ready ? 'ready' : w.booting ? 'booting' : 'idle';
   document.getElementById('warmText').textContent = !w.target ? 'warm machines: off'
@@ -3069,6 +3185,8 @@ setInterval(warmPoll, 4000);
 
 // initialize the deploy-page scale selectors to their default (single-build) state
 dpSync();
+
+if (tenkiKey) keyGateClose(); else keyGateOpen();
 
 // deep links — run last, after every view's state (sbx, mx) is initialized
 if (location.hash === '#deploy') showDeploy();

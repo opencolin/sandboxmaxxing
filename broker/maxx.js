@@ -72,6 +72,7 @@ function relayUpstream(harness, pref) {
 
 const APP_PORT = 3000;
 const DEFAULT_DEADLINE_MS = 30 * 60_000;
+const OWN_APP_MS = 2 * 60 * 60_000;
 const SEAT_STAGGER_MS = 1500;
 const JUDGE_MAX_WAIT_MS = 20 * 60_000;   // judge on whatever shipped by here
 // Pyramid shape: an agent splits into at most FANOUT sub-agents, MAX_DEPTH
@@ -81,7 +82,7 @@ const MAX_DEPTH = Number(process.env.MAXX_MAX_DEPTH || 3);   // 2 would cap a te
 const WAIT_BLOCK_MS = 90_000;            // under the agents' ~2 min tool-call timeout
 const DONE = new Set(["done", "failed", "stopped", "ended"]);
 
-export function createMaxx({ client, tracked, saveState, indexRelay, log, json, readJson, terminateSession, tokenEq, brokerUrl, opencodeUpgrade = "" }) {
+export function createMaxx({ client, tracked, saveState, indexRelay, log, json, readJson, terminateSession, ownImage, ownOf, ownClient, visitorKey, sealKey, badKey, noBalance, tokenEq, brokerUrl, opencodeUpgrade = "" }) {
   const DIR = path.dirname(new URL(import.meta.url).pathname);
   // Web search/fetch for seats, via the broker relay (TinyFish free tier). The
   // shim ships into the seat; the real key never leaves the broker. Feature is
@@ -94,6 +95,7 @@ export function createMaxx({ client, tracked, saveState, indexRelay, log, json, 
 
   let runs = {};
   try { runs = JSON.parse(fs.readFileSync(STATE_FILE, "utf8")); } catch {}
+  for (const r of Object.values(runs)) if (r.own) for (const t of r.teams) for (const s of t.seats) if (s.id) ownOf.set(s.id, r.own);
   const save = () => fs.writeFileSync(STATE_FILE, JSON.stringify(runs));
 
   /* Shipped apps, for the homepage wall. EVERY shipped app is recorded here, but
@@ -198,9 +200,9 @@ export function createMaxx({ client, tracked, saveState, indexRelay, log, json, 
 
   const token = () => crypto.randomBytes(24).toString("base64url");
 
-  function trackSeat(id) {
+  function trackSeat(id, own) {
     tracked[id] = {
-      createdAt: Date.now(), ipHash: "maxx", terminal: null,
+      createdAt: Date.now(), ipHash: "maxx", terminal: null, ...(own ? { own } : {}),
       exposeToken: token(), exposeCount: 0,
       relayToken: token(), relayCalls: 0, relayInFlight: 0, maxx: true,
     };
@@ -417,21 +419,24 @@ export function createMaxx({ client, tracked, saveState, indexRelay, log, json, 
     const ttl = Math.max(60_000, run.deadline - Date.now());
     const name = `maxx-${team.tag}-${seat.path.replace(/\./g, "-")}-${crypto.randomBytes(2).toString("hex")}`;
     // A warm machine if one is ready (tmux and opencode already installed), else a new one.
+    // A visitor's run boots its own image instead, in their workspace.
     let session = null;
-    const warmId = takeWarm();
+    const warmId = run.own ? null : takeWarm();
     if (warmId) {
       try { session = await client.get(warmId); if (session.state !== "RUNNING") { terminateSession(warmId); session = null; } }
       catch { session = null; }
       if (session) { client.updateSession(session.id, { name }).catch(() => {}); log("warm_taken", { runId: run.id, role: seat.role, id: session.id }); }
     }
-    if (!session) session = await client.create({
+    if (!session) session = await (run.own ? ownClient(run.own) : client).create({
       name,
-      cpuCores: 1, memoryMb: SEAT_MEMORY_MB, allowInbound: true, allowOutbound: true,
+      ...(run.own ? { image: ownImage } : { cpuCores: 1, memoryMb: SEAT_MEMORY_MB }),
+      allowInbound: true, allowOutbound: true,
       maxDurationMs: ttl, idleTimeoutMinutes: 0,
       metadata: { demo: "true", source: "maxx", maxx: run.id, team: team.tag, role: seat.path },
       waitReady: true,
     });
-    const entry = trackSeat(session.id);
+    if (run.own) ownOf.set(session.id, run.own);
+    const entry = trackSeat(session.id, run.own);
     seat.id = session.id;
 
     const harness = HARNESSES.has(run.harness) ? run.harness : "opencode";
@@ -825,6 +830,7 @@ export function createMaxx({ client, tracked, saveState, indexRelay, log, json, 
       seats: t.seats.map((s) => ({
         role: s.role, path: s.path ?? s.role, parent: s.parent ?? null, level: s.level ?? 0, title: s.title ?? s.role,
         model: s.model, state: s.state, terminalUrl: s.terminalUrl ?? null, answer: s.answer ? s.answer.slice(0, 600) : null,
+        noBalance: s.state === "failed" && noBalance({ message: s.error }),
       })),
     })),
   });
@@ -837,6 +843,9 @@ export function createMaxx({ client, tracked, saveState, indexRelay, log, json, 
   }
 
   async function start(req, res) {
+    const key = visitorKey(req, res);
+    if (key === null) return;
+    const own = key ? sealKey(key) : null;
     const body = await readJson(req);
     const prompt = typeof body.prompt === "string" ? body.prompt.slice(0, 4000) : "";
     if (!prompt) return json(res, 400, { error: "prompt_required" });
@@ -873,12 +882,12 @@ export function createMaxx({ client, tracked, saveState, indexRelay, log, json, 
     // app = one preview URL. Check both, leaving headroom for other traffic.
     let vmMax = 100, vmUsed = 0, previewMax = 100, previewUsed = 0;
     try {
-      const usage = await client.getUsage();
+      const usage = await (own ? ownClient(own) : client).getUsage();
       const vm = usage.find((x) => x.key === "max_concurrent_jobs");
       const pv = usage.find((x) => x.key === "preview_urls_per_workspace");
       if (vm) { vmMax = vm.max ?? vmMax; vmUsed = vm.current ?? 0; }
       if (pv) { previewMax = pv.max ?? previewMax; previewUsed = pv.current ?? 0; }
-    } catch {}
+    } catch (e) { if (own && badKey(e)) return json(res, 401, { error: "bad_key" }); }
     // Headroom so an arena run cannot consume the whole workspace. A FLAT
     // reservation sized for a 100-slot workspace swallows a small one entirely:
     // at vmMax 5 the old `|| 5` left free = 5 - used - 5, i.e. zero capacity even
@@ -887,8 +896,9 @@ export function createMaxx({ client, tracked, saveState, indexRelay, log, json, 
     // Scale to a quarter of the quota so a big workspace keeps the full flat
     // reservation (vmMax 100 -> 5, unchanged) while a small one keeps at most 1.
     const headroom = (cfg, max) => Math.min(cfg, Math.max(1, Math.floor(max / 4)));
-    const VM_RESERVED = headroom(Number(process.env.MAXX_RESERVED_VMS || 5), vmMax);
-    const PV_RESERVED = headroom(Number(process.env.MAXX_RESERVED_PREVIEWS || 3), previewMax);
+    // A visitor's workspace is theirs to fill.
+    const VM_RESERVED = own ? 0 : headroom(Number(process.env.MAXX_RESERVED_VMS || 5), vmMax);
+    const PV_RESERVED = own ? 0 : headroom(Number(process.env.MAXX_RESERVED_PREVIEWS || 3), previewMax);
     if (totalSeats > vmMax - vmUsed - VM_RESERVED)
       return json(res, 503, { error: "capacity", kind: "vms", need: totalSeats, free: Math.max(0, vmMax - vmUsed - VM_RESERVED), vmMax, vmUsed, note: "one sandbox per agent" });
     if (teamCount > previewMax - previewUsed - PV_RESERVED)
@@ -898,7 +908,7 @@ export function createMaxx({ client, tracked, saveState, indexRelay, log, json, 
     const run = runs[runId] = {
       id: runId, template: label, prompt, repoUrl, mode, compete, harness, provider,
       state: "launching", createdAt: Date.now(), deadline: Date.now() + DEFAULT_DEADLINE_MS,
-      verdict: null, teams: [],
+      verdict: null, teams: [], ...(own ? { own } : {}),
     };
     for (let i = 0; i < teamCount; i++) {
       const team = { tag: TAGS[i], size, publishedUrl: null, seats: [] };
@@ -932,6 +942,7 @@ export function createMaxx({ client, tracked, saveState, indexRelay, log, json, 
       delete tracked[s.id];
     }
     r.state = releaseAll ? "released" : "stopped";
+    delete r.own;                 // its live machines keep their own sealed copy
     save(); saveState(); indexRelay();
     // Terminate in the BACKGROUND — paused seats need resume+close, which is
     // slow; blocking the response is what hung the "Stop all" button.
@@ -956,6 +967,7 @@ export function createMaxx({ client, tracked, saveState, indexRelay, log, json, 
         s.state = "ended";
       }
       r.state = "ended";
+      delete r.own;
       save(); saveState(); indexRelay();
       log("maxx_run_ended", { runId: r.id, terminated: toKill.length });
       for (const id of toKill) await terminateSession(id);
@@ -1153,7 +1165,8 @@ export function createMaxx({ client, tracked, saveState, indexRelay, log, json, 
           // the run deadline and exempt it from the reaper, so the end product
           // doesn't turn to sand. Worker seats still expire normally.
           if (tracked[sessionId]) { tracked[sessionId].keep = true; saveState(); }
-          client.updateSession(sessionId, { sticky: true })
+          // Sticky would run on a visitor's balance until they noticed; theirs stays up 2 hours.
+          client.updateSession(sessionId, r.own ? { sticky: false, maxDurationMs: OWN_APP_MS } : { sticky: true })
             .catch((e) => log("maxx_keep_failed", { id: sessionId, message: e.message }));
           save();
           log("maxx_published", { runId: r.id, team: team.tag, url, kept: true });

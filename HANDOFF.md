@@ -256,6 +256,30 @@ on the old 1 GB seats the kernel OOM-killed it seconds into every run — the te
 `[exited]`, and an upstream 503 in its log was a red herring. Demo machines use the same size.
 If an agent dies early, check `sudo dmesg | grep -i "out of memory"` on the seat first.
 
+## Visitors bring their own Tenki key
+
+The whole site sits behind a key gate, modeled on tenki.space (`community/web/lib/ownKey.ts`).
+Machines run in the **visitor's** workspace on their balance, so `POST /api/maxx` and
+`POST /api/demo-sessions` answer 401 without a key (`KEY_REQUIRED=false` restores house machines).
+
+- **Flow:** the gate checks a key with `POST /api/key`, saves it in `localStorage`, and sends it
+  as `x-visitor-key` only when starting a machine. **Not `x-tenki-*`: Tenki's preview gateway
+  strips those headers.**
+- **Holding it** (`broker/ownkey.js`): the broker acts on machines after the browser leaves, so it
+  keeps the key sealed with AES-256-GCM under `KEY_SEAL_SECRET` in `broker/.env`, on the run and
+  on each tracked machine, and drops it when they end. Keep that secret: changing it strands
+  running visitor machines. The key must never enter a sandbox, a log, or the repo.
+- **Routing:** `ownOf` maps a session to its sealed key and `client.get` / `client.updateSession`
+  use it, so watch, the reaper and stop reach the right workspace unchanged. It outlives
+  `tracked`, because seats are untracked just before they are terminated.
+- **Machines** boot the public image `03q08p/agentcamp-golden:v2026-10-14` (`MAXX_OWN_IMAGE`) in
+  ~1s with tmux and every agent installed; its floor is 2 vCPU / 4 GiB, so that is what visitors
+  pay for per seat. The Access machine now starts on Start, not on opening Deploy.
+- **Shipped apps** aren't sticky on a visitor's balance: they stay up 2 hours (`OWN_APP_MS`).
+  Tenki rejects `maxDurationMs` unless `sticky` is set in the same update.
+- **The warm pool is off** (`MAXX_WARM_POOL=0`): there are no house machines left to warm.
+- **Model calls still go through the house relay**, so claude and codex tokens are on our AISA key.
+
 ## The 3D pyramid
 
 Machines' **Grid** tab shows each team as a 3D pyramid on a canvas (`pyr*` in `index.html`): one
