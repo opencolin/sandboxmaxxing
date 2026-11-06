@@ -37,9 +37,9 @@ const MAX_CREATES_PER_IP_PER_HOUR = 5;
 const DEMO_DURATION_MS = 60 * 60 * 1000;
 // Agents run in demo machines too, and opencode 1.19 alone needs ~840 MB: at 1 GB
 // the kernel OOM-killed it. Same size as arena seats (maxx.js).
-const DEMO_MEMORY_MB = Number(process.env.MAXX_SEAT_MEMORY_MB || 2048);
-// What visitors' machines boot: a public image with tmux and every agent installed, so
-// they start in about a second with nothing to set up. Its floor is 2 vCPU / 4 GiB.
+const DEMO_MEMORY_MB = 4096;
+// What machines boot: a public image with tmux and every agent installed, so they start
+// in about a second with nothing to set up. Its floor is 2 vCPU / 4 GiB.
 const OWN_IMAGE = process.env.MAXX_OWN_IMAGE || "03q08p/agentcamp-golden:v2026-10-14";
 const IDLE_TIMEOUT_MINUTES = 10;
 // must be a platform-allowed preview port; 7681 (ttyd default) is rejected
@@ -254,15 +254,28 @@ client.get = async (id) => {
 client.updateSession = (id, options) =>
   ownOf.has(id) ? ownClient(ownOf.get(id)).updateSession(id, options) : updateHouse(id, options);
 
-// Machines need the visitor's key unless KEY_REQUIRED=false. Returns the key, "" for a
-// house machine, or null once it has answered the request itself.
+// Machines need the visitor's key, unless KEY_REQUIRED=false or the gate's demo button sent
+// x-demo, which runs them on the house key. Returns the key, "" for a house machine, or
+// null once it has answered the request itself.
 const KEY_REQUIRED = process.env.KEY_REQUIRED !== "false";
+const DEMO_BUTTON = process.env.DEMO_BUTTON !== "false";
 function visitorKey(req, res) {
   const key = tidyKey(req.headers["x-visitor-key"]);
   if (key && !sealReady()) { json(res, 503, { error: "key_sealing_unconfigured" }); return null; }
-  if (key || !KEY_REQUIRED) return key;
+  if (key || !KEY_REQUIRED || (DEMO_BUTTON && req.headers["x-demo"] === "1")) return key;
   json(res, 401, { error: "key_required" });
   return null;
+}
+// The demo button is hidden, not locked: anyone reading the page can use it, and it spends
+// the house balance. So house runs are capped per IP.
+const HOUSE_RUNS_PER_IP_PER_HOUR = Number(process.env.HOUSE_RUNS_PER_IP_PER_HOUR || 10);
+const houseRuns = new Map();
+function houseRunAllowed(req) {
+  const ipHash = hashIp(ipOf(req)), now = Date.now();
+  const recent = (houseRuns.get(ipHash) || []).filter((t) => now - t < 3600_000);
+  if (recent.length >= HOUSE_RUNS_PER_IP_PER_HOUR) return false;
+  houseRuns.set(ipHash, [...recent, now]);
+  return true;
 }
 const badKey = (e) => /unauthenticated|unauthorized|permission|invalid.*(token|key)|\b40[13]\b/i.test(`${e.code ?? ""} ${e.message ?? ""}`);
 const noBalance = (e) => /balance/i.test(e.message || "");
@@ -375,7 +388,7 @@ async function createDemoSession(req, res) {
     saveState();
   }
 
-  if (!own && Object.keys(tracked).length >= MAX_DEMO)
+  if (!own && Object.values(tracked).filter((v) => !v.maxx && !v.own).length >= MAX_DEMO)
     return json(res, 503, { error: "capacity" });
   try {
     const usage = (await tenki.getUsage()).find((u) => u.key === "max_concurrent_jobs" || u.key === "active_sessions");
@@ -389,7 +402,7 @@ async function createDemoSession(req, res) {
   try {
     const session = await tenki.create({
       name: `demo-${crypto.randomBytes(4).toString("hex")}`,
-      ...(own ? { image: OWN_IMAGE } : { cpuCores: 1, memoryMb: DEMO_MEMORY_MB }),
+      image: OWN_IMAGE,
       allowInbound: true,
       allowOutbound: true,
       maxDurationMs: DEMO_DURATION_MS,
@@ -975,7 +988,7 @@ function serveStatic(req, res) {
 // can create sandboxes, keep them in `tracked` (expose + reaper still see
 // them), and answer over the same HTTP server.
 const maxx = createMaxx({
-  client, tracked, saveState, indexRelay, log, json, readJson, terminateSession, ownImage: OWN_IMAGE, ownOf, ownClient, visitorKey, sealKey, badKey, noBalance, tokenEq,
+  client, tracked, saveState, indexRelay, log, json, readJson, terminateSession, ownImage: OWN_IMAGE, ownOf, ownClient, visitorKey, houseRunAllowed, sealKey, badKey, noBalance, tokenEq,
   brokerUrl: BROKER_PUBLIC_URL, opencodeUpgrade: OPENCODE_UPGRADE,
 });
 

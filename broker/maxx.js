@@ -86,7 +86,7 @@ const TEAM_SIZES = [0, 1, 2, 3].map((d) => Array.from({ length: d + 1 }, (_, i) 
 const WAIT_BLOCK_MS = 90_000;            // under the agents' ~2 min tool-call timeout
 const DONE = new Set(["done", "failed", "stopped", "ended"]);
 
-export function createMaxx({ client, tracked, saveState, indexRelay, log, json, readJson, terminateSession, ownImage, ownOf, ownClient, visitorKey, sealKey, badKey, noBalance, tokenEq, brokerUrl, opencodeUpgrade = "" }) {
+export function createMaxx({ client, tracked, saveState, indexRelay, log, json, readJson, terminateSession, ownImage, ownOf, ownClient, visitorKey, houseRunAllowed, sealKey, badKey, noBalance, tokenEq, brokerUrl, opencodeUpgrade = "" }) {
   const DIR = path.dirname(new URL(import.meta.url).pathname);
   // Web search/fetch for seats, via the broker relay (TinyFish free tier). The
   // shim ships into the seat; the real key never leaves the broker. Feature is
@@ -433,7 +433,7 @@ export function createMaxx({ client, tracked, saveState, indexRelay, log, json, 
     }
     if (!session) session = await (run.own ? ownClient(run.own) : client).create({
       name,
-      ...(run.own ? { image: ownImage } : { cpuCores: 1, memoryMb: SEAT_MEMORY_MB }),
+      image: ownImage,
       allowInbound: true, allowOutbound: true,
       maxDurationMs: ttl, idleTimeoutMinutes: 0,
       metadata: { demo: "true", source: "maxx", maxx: run.id, team: team.tag, role: seat.path },
@@ -880,6 +880,7 @@ export function createMaxx({ client, tracked, saveState, indexRelay, log, json, 
     const key = visitorKey(req, res);
     if (key === null) return;
     const own = key ? sealKey(key) : null;
+    if (!own && !houseRunAllowed(req)) return json(res, 429, { error: "rate_limited" });
     const body = await readJson(req);
     const prompt = typeof body.prompt === "string" ? body.prompt.slice(0, 4000) : "";
     if (!prompt) return json(res, 400, { error: "prompt_required" });

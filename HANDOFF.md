@@ -275,6 +275,10 @@ Machines run in the **visitor's** workspace on their balance, so `POST /api/maxx
 - **Machines** boot the public image `03q08p/agentcamp-golden:v2026-10-14` (`MAXX_OWN_IMAGE`) in
   ~1s with tmux and every agent installed; its floor is 2 vCPU / 4 GiB, so that is what visitors
   pay for per seat. The Access machine now starts on Start, not on opening Deploy.
+- **The secret demo button** is a near-invisible `demo` at the top right of the gate, shown on
+  hover or keyboard focus. It sends `x-demo: 1`, which runs machines on the house key
+  (`TENKI_API_KEY`). It's hidden, not locked: anyone reading the page can use it, so house runs
+  are capped at `HOUSE_RUNS_PER_IP_PER_HOUR` (10). `DEMO_BUTTON=false` turns it off server-side.
 - **Machines terminate when done.** `killSeat` drives `seat.machine` (booting, up, terminating,
   terminated) and confirms the machine is gone. Sub-agents end on `tenki-report`; everything else
   on a team ends when its lead ships; a shipped lead stays up `MAXX_SHIPPED_MINUTES` (30), then
