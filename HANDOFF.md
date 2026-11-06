@@ -284,7 +284,8 @@ Machines run in the **visitor's** workspace on their balance, so `POST /api/maxx
   on a team ends when its lead ships; a shipped lead stays up `MAXX_SHIPPED_MINUTES` (30), then
   ends. `idleSweep` catches agents that stop without saying so: 3 minutes with a frozen tmux screen,
   no model call in flight and no successful call hands a sub-agent's work to its parent and ends
-  a stalled lead's run. The screen alone isn't enough: Claude's freezes during one long call. Tenki rejects
+  a stalled lead's run, after one nudge typed into its session. The screen alone isn't enough:
+  Claude's freezes during one long call. Tenki rejects
   `maxDurationMs` unless `sticky` is set in the same update.
 - **The warm pool is off** (`MAXX_WARM_POOL=0`): there are no house machines left to warm.
 - **Model calls still go through the house relay**, so claude and codex tokens are on our AISA key.

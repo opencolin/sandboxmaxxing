@@ -96,7 +96,7 @@ const EMOTION = {
   med: "Let this temperament clearly shape your decisions, your priorities, and how you describe your work.",
   high: "Inhabit this temperament completely. Let strong feelings drive your decisions, argue for what it cares about, and let them show in everything you write.",
 };
-const WAIT_BLOCK_MS = 90_000;            // under the agents' ~2 min tool-call timeout
+const WAIT_BLOCK_MS = 25_000;            // short: Tenki's gateway can cut a long request
 const DONE = new Set(["done", "failed", "stopped", "ended"]);
 
 export function createMaxx({ client, tracked, saveState, indexRelay, log, json, readJson, terminateSession, ownImage, ownOf, ownClient, visitorKey, houseRunAllowed, sealKey, badKey, noBalance, tokenEq, brokerUrl, opencodeUpgrade = "" }) {
@@ -257,16 +257,28 @@ export function createMaxx({ client, tracked, saveState, indexRelay, log, json, 
       "SERVE\nchmod +x $HOME/.local/bin/tenki-serve";
     // Pyramid helpers: split into sub-agents, wait for them, report to the parent.
     // The broker answers each with JSON whose `text` is meant for the agent to read.
+    // A reply that isn't JSON (the gateway timed out, say) must read as "try again": an
+    // agent shown a traceback gives up and sits at its prompt.
+    const readReply = `python3 -c 'import json,sys; s=sys.stdin.read(); d=json.loads(s) if s.strip().startswith("{") else {"text": "No answer from the broker. Run this command again."}; print(d.get("text") or json.dumps(d))'`;
     const seatApi = (name, method, body) =>
       `cat > $HOME/.local/bin/${name} <<'HELPER'\n#!/bin/bash\n` +
       (body ? `${body} | ` : "") +
       `curl -sS -X ${method} "$TENKI_BROKER_URL/api/maxx/seat/$TENKI_SESSION_ID/${name.replace("tenki-", "")}" ` +
       `-H "x-expose-token: $TENKI_EXPOSE_TOKEN" -H 'content-type: application/json'` + (body ? " --data-binary @-" : "") +
-      ` | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d.get("text") or json.dumps(d))'\n` +
+      ` | ${readReply}\n` +
       `HELPER\nchmod +x $HOME/.local/bin/${name}`;
+    // tenki-wait is a few short polls, so each stays under the gateway's limit.
+    const waitHelper =
+      `cat > $HOME/.local/bin/tenki-wait <<'HELPER'\n#!/bin/bash\n` +
+      `for i in 1 2 3; do\n` +
+      `  out=$(curl -sS -m 40 "$TENKI_BROKER_URL/api/maxx/seat/$TENKI_SESSION_ID/wait" -H "x-expose-token: $TENKI_EXPOSE_TOKEN")\n` +
+      `  case "$out" in *'"done":true'*) break;; esac\n` +
+      `done\n` +
+      `printf %s "$out" | ${readReply}\n` +
+      `HELPER\nchmod +x $HOME/.local/bin/tenki-wait`;
     const pyramidHelpers = [
       seatApi("tenki-split", "POST", `python3 -c 'import json,sys; print(json.dumps({"subtasks": json.loads(sys.argv[1] if len(sys.argv) > 1 else sys.stdin.read())}))' "$@"`),
-      seatApi("tenki-wait", "GET", null),
+      waitHelper,
       seatApi("tenki-report", "POST", `python3 -c 'import json,sys; print(json.dumps({"summary": " ".join(sys.argv[1:]) or sys.stdin.read()}))' "$@"`),
     ];
     // The MCP shim reaches the web through the broker relay, so the seat needs
@@ -1071,6 +1083,17 @@ export function createMaxx({ client, tracked, saveState, indexRelay, log, json, 
           const screen = stdoutText(await s.exec("bash", { args: ["-lc", "tmux capture-pane -pt agent 2>/dev/null | md5sum"], timeoutMs: 15_000 }));
           if (screen !== seat.screen) { seat.screen = screen; seat.screenAt = Date.now(); return; }
           if (Date.now() - (seat.screenAt || 0) < SEAT_IDLE_MS) return;
+          // One nudge first: an agent often just stopped to wait for someone to reply.
+          if (!seat.nudged) {
+            seat.nudged = true; seat.screenAt = Date.now(); save();
+            const text = seat.parent ? "Finish your part now, then run tenki-report as your last step."
+              : childrenOf(team, seat).length ? "All your sub-agents have finished. Run tenki-wait, integrate their parts, then publish with tenki-serve and tenki-publish."
+              : "Finish the build now, then publish with tenki-serve and tenki-publish.";
+            const b64 = Buffer.from(text).toString("base64");
+            await s.exec("bash", { args: ["-lc", `T=$(echo ${b64} | base64 -d); tmux send-keys -t agent -l "$T" && tmux send-keys -t agent Enter`], timeoutMs: 15_000 });
+            log("maxx_seat_nudged", { runId: r.id, seat: seat.path });
+            return;
+          }
           log("maxx_seat_idle", { runId: r.id, seat: seat.path });
           if (seat.parent) await handOver(r, team, seat, "(This agent stopped without reporting. Whatever it finished is in its folder.)");
           else await endRun(r);

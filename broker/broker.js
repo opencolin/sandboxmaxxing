@@ -160,7 +160,7 @@ const HOP = new Set(["connection", "keep-alive", "proxy-authenticate", "proxy-au
   "proxy-connection", "te", "trailer", "transfer-encoding", "upgrade", "host", "authorization",
   "accept-encoding", "content-encoding", "content-length", "cookie", "x-expose-token"]);
 const MAX_RELAY_CALLS = Number(process.env.MAX_RELAY_CALLS || 600);   // per session
-const MAX_RELAY_INFLIGHT = 4;
+const MAX_RELAY_INFLIGHT = 8;
 const MAX_RELAY_BODY = 1 << 20;                                       // 1 MiB request cap
 const RELAY_STREAM_CAP_MS = 15 * 60_000;                             // absolute per-request cap
 // Time-to-first-byte allowance. A NON-streaming call to a reasoning model
