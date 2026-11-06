@@ -77,7 +77,7 @@ const JUDGE_MAX_WAIT_MS = 20 * 60_000;   // judge on whatever shipped by here
 // Pyramid shape: an agent splits into at most FANOUT sub-agents, MAX_DEPTH
 // levels below the root. The team's size is a budget on top of that.
 const FANOUT = Number(process.env.MAXX_FANOUT || 4);
-const MAX_DEPTH = Number(process.env.MAXX_MAX_DEPTH || 2);
+const MAX_DEPTH = Number(process.env.MAXX_MAX_DEPTH || 3);   // 2 would cap a team at 21 agents
 const WAIT_BLOCK_MS = 90_000;            // under the agents' ~2 min tool-call timeout
 const DONE = new Set(["done", "failed", "stopped", "ended"]);
 
@@ -154,17 +154,20 @@ export function createMaxx({ client, tracked, saveState, indexRelay, log, json, 
   // sits in the pyramid (can it split, does it publish or report) differs.
   function seatDuty(run, team, seat) {
     const isRoot = seat.level === 0;
-    const canSplit = seat.level < MAX_DEPTH && team.size > 1;
+    const want = seatWants(team, seat);
     const lines = [
       isRoot
         ? `You are the lead agent of a pyramid of agents. Build the requested application in /home/tenki/work, make it genuinely good, and get it live. Keep the scope tight enough to actually finish and ship.`
         : `You are agent ${seat.path} ("${seat.title}") in a pyramid of agents building one application. Your parent agent gave you the task below. Do it well and keep it self-contained.`,
     ];
-    if (canSplit) lines.push(
-      `\nYou may do the task yourself, or, if it divides into 2 to ${FANOUT} independent parts that are each worth an agent, delegate them:\n` +
+    // Mandatory, not optional: told it "may" split, a capable lead builds anything
+    // small alone, so a 24-agent run used one sandbox.
+    if (want) lines.push(
+      `\nThis team was started with ${team.size} agents and whoever started it expects to see them working, so you must delegate, however small the task looks. ` +
+      `Your FIRST action, before writing any code, is to divide the task into exactly ${want} independent part${want === 1 ? "" : "s"} and start ${want === 1 ? "a sub-agent" : "that many sub-agents"}:\n` +
       `tenki-split <<'EOF'\n[{"title": "2 to 4 words", "prompt": "a complete, self-contained prompt"}]\nEOF\n` +
-      `Each sub-agent gets a sandbox of its own, sees ONLY its own prompt (so include every detail it needs: file names, interfaces, style), works in parallel, and may split again. ` +
-      `tenki-split says how many agents your team has left; if it refuses, do the work yourself. Split at most once, early, and keep working on your own part meanwhile.\n` +
+      `Each sub-agent gets a sandbox of its own, sees ONLY its own prompt (so include every detail it needs: file names, interfaces, style), and works in parallel. ` +
+      `tenki-split says how many agents your team has left; if it refuses, do the work yourself. Split once, then keep working on your own part meanwhile.\n` +
       `Then run tenki-wait. It returns after about 90 seconds or once every sub-agent has reported, prints each one's summary, and puts its files in /home/tenki/work/parts/<n>-<title>/. ` +
       `Run it again until it says all are done, then integrate the parts into one working result. If a sub-agent fails or stalls, do its part yourself.`);
     if (isRoot) lines.push(
@@ -177,6 +180,15 @@ export function createMaxx({ client, tracked, saveState, indexRelay, log, json, 
     lines.push(isRoot ? `\nBUILD REQUEST:\n${run.prompt}` : `\nYOUR TASK:\n${seat.prompt}\n\nTHE OVERALL BUILD (context only; do just your task):\n${run.prompt}`);
     return lines.join("\n");
   }
+  // A seat's share is the agents its part of the pyramid should grow to, itself
+  // included; the lead's is the whole team. Splitting divides the share among the
+  // children, so the pyramid fills to the team's size and no further.
+  const fullBelow = (level) => { let n = 0; for (let d = 0; d <= MAX_DEPTH - level; d++) n += FANOUT ** d; return n; };
+  const seatWants = (team, seat) => seat.level >= MAX_DEPTH ? 0 : Math.min(FANOUT, (seat.share ?? team.size) - 1);
+  const childShare = (team, seat, i, n) => {
+    const pool = (seat.share ?? team.size) - 1;
+    return Math.min(fullBelow(seat.level + 1), Math.max(1, Math.floor(pool / n) + (i < pool % n ? 1 : 0)));
+  };
   const newSeat = (run, team, fields) => ({
     ...fields, role: fields.path,
     model: seatModel(team.seats.length, run, TAGS.indexOf(team.tag) * 2),
@@ -650,7 +662,7 @@ export function createMaxx({ client, tracked, saveState, indexRelay, log, json, 
     if (!take.length) return no("no_budget", "Your team has no agents left to start. Do the task yourself.");
     // newSeat picks a model by the team's seat count, so add them one at a time.
     const kids = take.map((t, i) => {
-      const k = newSeat(r, team, { path: `${seat.path}.${before.length + i}`, parent: seat.path, level: seat.level + 1, title: t.title, prompt: t.prompt, gen: before.length });
+      const k = newSeat(r, team, { path: `${seat.path}.${before.length + i}`, parent: seat.path, level: seat.level + 1, title: t.title, prompt: t.prompt, gen: before.length, share: childShare(team, seat, i, take.length) });
       team.seats.push(k);
       return k;
     });

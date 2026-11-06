@@ -23,7 +23,7 @@ A team starts as **one agent** holding the prompt. Every agent runs the same loo
 1. Do the task itself, or split it into 2–`MAXX_FANOUT` (default 4)
    self-contained sub-prompts with `tenki-split`. Each one goes to a sub-agent
    in a sandbox of its own, which runs this same loop, in parallel, down to
-   `MAXX_MAX_DEPTH` (default 2) levels below the root.
+   `MAXX_MAX_DEPTH` (default 3) levels below the root.
 2. Run `tenki-wait`. It blocks for about 90 seconds at most (under the agents' tool-call
    timeout), so the agent calls it again until every sub-agent has reported.
 3. A sub-agent ends with `tenki-report`. The broker tars its `/home/tenki/work` into

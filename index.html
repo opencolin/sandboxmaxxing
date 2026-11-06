@@ -540,6 +540,14 @@
   /* phones: stats, view tabs, Stop all and New Machine wrap instead of running off the screen */
   @media (max-width: 640px) { .mx-arena-actions { margin-left: 0; gap: 14px 18px; } }
   .mx-stat { text-align: right; } .mx-stat b { font-family: var(--mono); font-size: 18px; font-weight: 500; display: block; } .mx-stat span { font-family: var(--mono); font-size: 10px; color: #6a6a6a; letter-spacing: .08em; }
+  .mx-pyr { position: relative; height: 540px; margin-bottom: 16px; border: 1px solid #1e1e1e; border-radius: 14px; background: #060606; overflow: hidden; }
+  .mx-pyr canvas { display: block; width: 100%; height: 100%; cursor: grab; touch-action: pan-y; }
+  .mx-pyr canvas:active { cursor: grabbing; }
+  .mx-pyr-count { position: absolute; left: 16px; top: 13px; font-size: 12.5px; color: #c4c4c4; pointer-events: none; }
+  .mx-pyr-hint { position: absolute; left: 16px; bottom: 12px; font-size: 11.5px; color: #5a5a5a; pointer-events: none; }
+  .mx-pyr-tip { position: absolute; max-width: 280px; padding: 8px 10px; border: 1px solid #2a2a2a; border-radius: 8px; background: rgba(10, 10, 10, .94);
+                font-size: 11.5px; line-height: 1.5; color: #c4c4c4; pointer-events: none; white-space: pre-wrap; }
+  @media (max-width: 640px) { .mx-pyr { height: 400px; } }
   .mx-team { border: 1px solid #222; border-radius: 16px; background: #070707; padding: 16px; }
   .mx-team.win { border-color: rgba(var(--sand-rgb),.5); background: #0c0a06; }
   .mx-team-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
@@ -1129,6 +1137,12 @@ tenki sandbox ssh --session my-box</div>
         <div class="mx-rail-head">Machines</div>
         <div class="mx-rail" id="mxRail"></div>
       </div>
+    </div>
+    <div id="mxPyramid" class="mx-pyr" style="display:none;">
+      <canvas id="mxPyrCanvas" aria-label="3D pyramid of this run's machines"></canvas>
+      <div class="mx-pyr-count mono" id="mxPyrCount"></div>
+      <div class="mx-pyr-hint mono">drag to rotate · click a machine to watch it</div>
+      <div class="mx-pyr-tip mono" id="mxPyrTip" hidden></div>
     </div>
     <div id="mxTeams" style="display:none;gap:16px;align-items:start;"></div>
     <div style="display:flex;align-items:center;gap:22px;margin-top:22px;font-size:12px;color:#7c7c7c;flex-wrap:wrap;">
@@ -2378,10 +2392,11 @@ function mxOpenRun(data, promptText, startedAt) {
   mxStageReset();
   const stop = document.getElementById('mxStop');
   stop.style.display = ''; stop.disabled = false; stop.textContent = 'Stop all'; stop.onclick = mxStop;
-  // Theater is the default view for every run — watching an agent work is the
-  // point; Grid stays one click away for the whole-roster overview.
+  // A run that can grow opens on the 3D pyramid, so the machines are seen spinning
+  // up; a single agent opens on its terminal.
   const tabs = document.querySelectorAll('#mxViewTabs button');
-  mxSetView('theater', tabs[1]);
+  const grows = (data.teams || []).some(t => (t.size || 1) > 1);
+  mxSetView(grows ? 'grid' : 'theater', tabs[grows ? 0 : 1]);
   mxRender(data);
   clearInterval(mx.poll);
   mx.poll = setInterval(mxTick, 3000);
@@ -2568,7 +2583,166 @@ function mxSetView(v, btn) {
   if (btn) [...btn.parentElement.children].forEach(c => c.classList.toggle('on', c === btn));
   document.getElementById('mxTheater').style.display = v === 'theater' ? 'grid' : 'none';
   document.getElementById('mxTeams').style.display = v === 'theater' ? 'none' : 'grid';
-  if (v === 'theater') { mx.railSig = ''; mxTick(); }
+  document.getElementById('mxPyramid').style.display = v === 'theater' ? 'none' : 'block';
+  if (v === 'theater') { mx.railSig = ''; mxTick(); } else pyrStart();
+}
+/* ---- 3D pyramid: every agent is a cube in a 3D grid -------------------------
+   Sub-agents split by up to 4, so each level is a square: the lead on top, 2×2
+   under it, then 4×4 and 8×8. A seat's path ("r.2.1") gives its cell directly.
+   Slots the team may still fill are faint outlines, so the whole shape is there
+   from the first second and fills in as machines start. */
+const PYR_RISE = 1.75;           // height of one level
+const PYR = { yaw: 0.65, pitch: 0.3, drag: null, hover: null, raf: 0, ready: false, nodes: [], last: 0, sand: [217, 201, 163] };
+const PYR_RGB = { running: [62, 207, 106], RUNNING: [62, 207, 106], waiting: [108, 182, 224], done: [150, 150, 150], failed: [224, 108, 108], stopped: [84, 84, 84], ended: [84, 84, 84] };
+const PYR_STILL = matchMedia('(prefers-reduced-motion: reduce)').matches;
+function pyrCell(path) {
+  const parts = String(path).split('.').slice(1).map(Number);
+  let x = 0, z = 0;
+  for (const i of parts) { x = x * 2 + (i % 2); z = z * 2 + (Math.floor(i / 2) % 2); }
+  const L = parts.length, n = 2 ** L;
+  // Spacing shrinks with depth so the silhouette is a straight-sided pyramid.
+  const step = L ? (2 * L) / (n - 1) : 0;
+  return { level: L, x: (x - (n - 1) / 2) * step, z: (z - (n - 1) / 2) * step, y: L * PYR_RISE };
+}
+// Every slot a team of this size can use, breadth-first: "r", "r.0"…"r.3", "r.0.0"…
+function pyrSlots(size) {
+  const out = ['r'];
+  for (let i = 0; out.length < size && i < out.length; i++)
+    for (let c = 0; c < 4 && out.length < size; c++) out.push(out[i] + '.' + c);
+  return out;
+}
+function pyrColor(state) {
+  if (state === 'shipped' || state === 'published' || state === 'pending' || state === 'starting') return PYR.sand;
+  return PYR_RGB[state] || PYR_RGB.stopped;
+}
+function pyrPoint(v, o) {        // rotate about the pyramid's axis, then project
+  const cy = Math.cos(PYR.yaw), sy = Math.sin(PYR.yaw), cp = Math.cos(PYR.pitch), sp = Math.sin(PYR.pitch);
+  const x = v[0] * cy - v[2] * sy, z = v[0] * sy + v[2] * cy, y = v[1] - o.midY;
+  const y2 = y * cp - z * sp, z2 = y * sp + z * cp, k = 26 / (26 + z2);
+  return [o.cx + x * o.scale * k, o.cy + y2 * o.scale * k, z2];
+}
+const PYR_FACES = [[0, 1, 2, 3, 1], [4, 5, 6, 7, .5], [0, 1, 5, 4, .78], [1, 2, 6, 5, .6], [2, 3, 7, 6, .78], [3, 0, 4, 7, .6]];
+function pyrCube(ctx, n, o, t) {
+  const h = n.level ? 0.3 : 0.38, c = n.c, P = [];
+  for (const [dx, dy, dz] of [[-1, -1, -1], [1, -1, -1], [1, -1, 1], [-1, -1, 1], [-1, 1, -1], [1, 1, -1], [1, 1, 1], [-1, 1, 1]])
+    P.push(pyrPoint([c.x + dx * h, c.y + dy * h, c.z + dz * h], o));
+  const pulse = n.seat && (n.state === 'pending' || n.state === 'starting') ? 0.45 + 0.4 * Math.sin(t / 220) : 1;
+  const rgb = n.seat ? pyrColor(n.state) : null;
+  const mid = pyrPoint([c.x, c.y, c.z], o)[2];
+  for (const f of PYR_FACES) {
+    const [a, b, d, e] = f.slice(0, 4).map(i => P[i]);
+    if ((a[2] + b[2] + d[2] + e[2]) / 4 >= mid) continue;      // faces the far side
+    ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.lineTo(d[0], d[1]); ctx.lineTo(e[0], e[1]); ctx.closePath();
+    if (rgb) {
+      const m = f[4];
+      ctx.fillStyle = `rgba(${rgb[0] * m | 0},${rgb[1] * m | 0},${rgb[2] * m | 0},${pulse})`;
+      ctx.fill();
+      ctx.strokeStyle = n === PYR.hover ? '#fff' : 'rgba(0,0,0,.45)';
+      ctx.lineWidth = n === PYR.hover ? 1.6 : 1;
+    } else {
+      ctx.strokeStyle = n === PYR.hover ? 'rgba(255,255,255,.5)' : 'rgba(255,255,255,.17)';
+      ctx.lineWidth = 1;
+    }
+    ctx.stroke();
+  }
+  const p = pyrPoint([c.x, c.y, c.z], o);
+  n.sx = p[0]; n.sy = p[1]; n.r = h * o.scale * 1.5;
+}
+function pyrDraw(t) {
+  const cv = document.getElementById('mxPyrCanvas');
+  const w = cv.clientWidth, hgt = cv.clientHeight, dpr = Math.min(devicePixelRatio || 1, 2);
+  if (!w || !hgt) return;
+  if (cv.width !== Math.round(w * dpr) || cv.height !== Math.round(hgt * dpr)) { cv.width = Math.round(w * dpr); cv.height = Math.round(hgt * dpr); }
+  const ctx = cv.getContext('2d');
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, w, hgt);
+  const run = mx.lastRun, count = document.getElementById('mxPyrCount');
+  if (!run) { count.textContent = 'No machines running'; PYR.nodes = []; return; }
+  const terminal = ['ended', 'stopped', 'released'].includes(run.state);
+  const teams = run.teams || [], nodes = [], lines = [];
+  teams.forEach((team, ti) => {
+    const seats = team.seats || [], used = new Set(seats.map(s => s.path)), size = Math.max(team.size || 1, seats.length);
+    const free = pyrSlots(size).filter(p => !used.has(p)).slice(0, Math.max(0, size - seats.length));
+    const depth = Math.max(1, ...seats.concat(free.map(path => ({ path }))).map(s => pyrCell(s.path).level));
+    const span = Math.SQRT2 * depth + 0.9, tall = depth * PYR_RISE, slot = w / teams.length;
+    const fit = Math.min(slot / (2 * span), (hgt - 70) / (tall * Math.cos(PYR.pitch) + 2 * span * Math.sin(PYR.pitch) + 1.2));
+    const o = { cx: slot * (ti + 0.5), cy: hgt / 2 + 12, scale: fit, midY: tall / 2 };
+    for (const s of seats) {
+      const c = pyrCell(s.path);
+      const state = terminal && !['shipped', 'published', 'done', 'failed'].includes(s.state) ? 'stopped' : (s.state || 'pending');
+      nodes.push({ seat: s, team: team.tag, state, c, level: c.level, o });
+      if (s.parent) lines.push([pyrCell(s.parent), c, o]);
+    }
+    for (const path of free) { const c = pyrCell(path); nodes.push({ seat: null, team: team.tag, path, c, level: c.level, o }); }
+  });
+  ctx.strokeStyle = 'rgba(255,255,255,.22)'; ctx.lineWidth = 1;
+  for (const [a, b, o] of lines) {
+    const p = pyrPoint([a.x, a.y, a.z], o), q = pyrPoint([b.x, b.y, b.z], o);
+    ctx.beginPath(); ctx.moveTo(p[0], p[1]); ctx.lineTo(q[0], q[1]); ctx.stroke();
+  }
+  for (const n of nodes) n.depth = pyrPoint([n.c.x, n.c.y, n.c.z], n.o)[2];
+  nodes.sort((a, b) => b.depth - a.depth);           // far cubes first
+  for (const n of nodes) pyrCube(ctx, n, n.o, t);
+  PYR.nodes = nodes;
+  count.textContent = teams.map(tm => {
+    const n = (tm.seats || []).length, m = Math.max(tm.size || 1, n);
+    return (teams.length > 1 ? `Team ${tm.tag}: ` : '') + `${n} of ${m} machine${m === 1 ? '' : 's'} started`;
+  }).join('   ·   ');
+}
+function pyrFrame(t) {
+  PYR.raf = 0;
+  if (mx.view === 'theater' || document.hidden) return;
+  const dt = Math.min(t - PYR.last, 60); PYR.last = t;
+  if (!PYR.drag && !PYR_STILL) PYR.yaw += dt * 0.00018;
+  pyrDraw(t);
+  PYR.raf = requestAnimationFrame(pyrFrame);
+}
+function pyrPick(e) {
+  const r = e.target.getBoundingClientRect(), x = e.clientX - r.left, y = e.clientY - r.top;
+  let best = null;
+  for (const n of PYR.nodes) if (n.sx !== undefined && Math.hypot(n.sx - x, n.sy - y) < n.r) best = n;   // last drawn = front
+  return { n: best, x, y };
+}
+function pyrTip(n, x, y) {
+  const tip = document.getElementById('mxPyrTip');
+  PYR.hover = n;
+  if (!n) { tip.hidden = true; return; }
+  const s = n.seat;
+  tip.textContent = s ? `${s.title || s.role} · ${n.state}\n${s.path} · team ${n.team}${s.model ? '\n' + s.model : ''}${s.answer ? '\n' + s.answer.slice(0, 160) : ''}`
+                      : `Empty slot · ${n.path}\nStarts if an agent splits`;
+  tip.hidden = false;
+  const box = tip.parentElement.getBoundingClientRect();
+  tip.style.left = Math.max(8, Math.min(x + 14, box.width - tip.offsetWidth - 8)) + 'px';
+  tip.style.top = Math.max(8, Math.min(y + 14, box.height - tip.offsetHeight - 8)) + 'px';
+}
+function pyrStart() {
+  const cv = document.getElementById('mxPyrCanvas');
+  if (!PYR.ready) {
+    PYR.ready = true;
+    const rgb = getComputedStyle(document.documentElement).getPropertyValue('--sand-rgb').split(',').map(Number);
+    if (rgb.length === 3 && rgb.every(Number.isFinite)) PYR.sand = rgb;
+    cv.addEventListener('pointerdown', e => { PYR.drag = { x: e.clientX, y: e.clientY, yaw: PYR.yaw, pitch: PYR.pitch, moved: false }; cv.setPointerCapture(e.pointerId); });
+    cv.addEventListener('pointermove', e => {
+      const d = PYR.drag;
+      if (!d) { const { n, x, y } = pyrPick(e); pyrTip(n, x, y); return; }
+      if (Math.hypot(e.clientX - d.x, e.clientY - d.y) > 4) d.moved = true;
+      PYR.yaw = d.yaw + (e.clientX - d.x) * 0.008;
+      PYR.pitch = Math.max(0.12, Math.min(1.15, d.pitch + (e.clientY - d.y) * 0.005));
+    });
+    cv.addEventListener('pointerup', e => {
+      const d = PYR.drag; PYR.drag = null;
+      if (!d || d.moved) return;
+      const { n, x, y } = pyrPick(e);
+      if (n && n.seat && !['done', 'failed', 'stopped', 'ended'].includes(n.state)) {
+        mxSetView('theater', document.querySelectorAll('#mxViewTabs button')[1]);
+        mxPlay(n.team, n.seat.role, null);
+      } else pyrTip(n, x, y);
+    });
+    cv.addEventListener('pointerleave', () => pyrTip(null));
+    document.addEventListener('visibilitychange', () => { if (!document.hidden && mx.view !== 'theater' && !PYR.raf) PYR.raf = requestAnimationFrame(pyrFrame); });
+  }
+  pyrDraw(performance.now());
+  if (!PYR.raf) PYR.raf = requestAnimationFrame(pyrFrame);
 }
 function mxSeatKey(team, role) { return team + '/' + role; }
 // Build the rail. Rebuilt only when the seat set/states change, so clicking a
