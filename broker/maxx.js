@@ -6,7 +6,8 @@
  * A team is not a fixed roster. It starts as ONE agent with the prompt. Any
  * agent may split its task into up to FANOUT self-contained sub-prompts
  * (`tenki-split`); each goes to a sub-agent in a sandbox of its own, which runs
- * the same loop, up to MAX_DEPTH levels and the team's agent budget. A
+ * the same loop. A team's size is a full pyramid — 1, 5, 21 or 85 agents, i.e.
+ * 0 to 3 levels of splitting by 4 — and sets how deep it may go. A
  * sub-agent finishes with `tenki-report`: the broker copies its work into the
  * parent's parts/ folder and terminates its sandbox, and the parent combines
  * the parts (`tenki-wait`). The root publishes the app.
@@ -75,10 +76,10 @@ const DEFAULT_DEADLINE_MS = 30 * 60_000;
 const OWN_APP_MS = 2 * 60 * 60_000;
 const SEAT_STAGGER_MS = 1500;
 const JUDGE_MAX_WAIT_MS = 20 * 60_000;   // judge on whatever shipped by here
-// Pyramid shape: an agent splits into at most FANOUT sub-agents, MAX_DEPTH
-// levels below the root. The team's size is a budget on top of that.
+// Pyramid shape: an agent splits into at most FANOUT sub-agents. A team's size
+// is a full pyramid of some depth: 1, 1+4, 1+4+16, 1+4+16+64 agents for FANOUT 4.
 const FANOUT = Number(process.env.MAXX_FANOUT || 4);
-const MAX_DEPTH = Number(process.env.MAXX_MAX_DEPTH || 3);   // 2 would cap a team at 21 agents
+const TEAM_SIZES = [0, 1, 2, 3].map((d) => Array.from({ length: d + 1 }, (_, i) => FANOUT ** i).reduce((a, b) => a + b));
 const WAIT_BLOCK_MS = 90_000;            // under the agents' ~2 min tool-call timeout
 const DONE = new Set(["done", "failed", "stopped", "ended"]);
 
@@ -135,9 +136,9 @@ export function createMaxx({ client, tracked, saveState, indexRelay, log, json, 
     });
   }
 
-  // A team's size is its agent budget: the most agents its pyramid may grow to,
-  // root included. Size 1 never splits. The deploy-page selector drives this.
-  const TEAM_SIZES = [1, 4, 12, 24];    // selectable per-team size (solo / 2-team)
+  // A team's size is the full pyramid it may grow to (TEAM_SIZES), root included;
+  // its depth is how many levels of splitting that takes. Size 1 never splits.
+  // The deploy-page selector drives this.
   const TAGS = ["A", "B"];              // head-to-head only
 
   // The root always gets the strongest model; sub-agents round-robin the rest.
@@ -185,12 +186,12 @@ export function createMaxx({ client, tracked, saveState, indexRelay, log, json, 
   }
   // A seat's share is the agents its part of the pyramid should grow to, itself
   // included; the lead's is the whole team. Splitting divides the share among the
-  // children, so the pyramid fills to the team's size and no further.
-  const fullBelow = (level) => { let n = 0; for (let d = 0; d <= MAX_DEPTH - level; d++) n += FANOUT ** d; return n; };
-  const seatWants = (team, seat) => seat.level >= MAX_DEPTH ? 0 : Math.min(FANOUT, (seat.share ?? team.size) - 1);
+  // children, so a team fills its pyramid exactly: 21 is 1 + 4 + 16.
+  const teamDepth = (team) => team.depth ?? 2;   // runs from before depth was stored
+  const seatWants = (team, seat) => seat.level >= teamDepth(team) ? 0 : Math.min(FANOUT, (seat.share ?? team.size) - 1);
   const childShare = (team, seat, i, n) => {
     const pool = (seat.share ?? team.size) - 1;
-    return Math.min(fullBelow(seat.level + 1), Math.max(1, Math.floor(pool / n) + (i < pool % n ? 1 : 0)));
+    return Math.max(1, Math.floor(pool / n) + (i < pool % n ? 1 : 0));
   };
   const newSeat = (run, team, fields) => ({
     ...fields, role: fields.path,
@@ -651,7 +652,7 @@ export function createMaxx({ client, tracked, saveState, indexRelay, log, json, 
     const { r, team, seat } = ctx;
     const no = (error, text) => json(res, 409, { error, text });
     if (r.aborted || !["launching", "running"].includes(r.state)) return no("run_over", "The run is over; finish what you have.");
-    if (seat.level >= MAX_DEPTH) return no("too_deep", "You are at the bottom of the pyramid and cannot split. Do the task yourself.");
+    if (seat.level >= teamDepth(team)) return no("too_deep", "You are at the bottom of the pyramid and cannot split. Do the task yourself.");
     const body = await readJson(req, 64 * 1024);
     // One split at a time: a seat may split again (e.g. in a later round) once its
     // last sub-agents are done. Checked after the await and before any push, so two
@@ -872,7 +873,7 @@ export function createMaxx({ client, tracked, saveState, indexRelay, log, json, 
     // Teams (1 solo, 2 head-to-head) and each team's agent budget. A team starts
     // as one agent and grows only as its agents split, up to that budget.
     const teamCount = [1, 2].includes(Number(body.teams)) ? Number(body.teams) : 1;
-    const size = TEAM_SIZES.includes(Number(body.size)) ? Number(body.size) : 4;
+    const size = TEAM_SIZES.includes(Number(body.size)) ? Number(body.size) : TEAM_SIZES[1];
     const label = teamCount > 1 ? `arena-${teamCount} · up to ${size} each` : `solo · up to ${size}`;
     const compete = teamCount > 1;
     // Reserve the whole budget up front, so a pyramid never splits into a full workspace.
@@ -911,7 +912,7 @@ export function createMaxx({ client, tracked, saveState, indexRelay, log, json, 
       verdict: null, teams: [], ...(own ? { own } : {}),
     };
     for (let i = 0; i < teamCount; i++) {
-      const team = { tag: TAGS[i], size, publishedUrl: null, seats: [] };
+      const team = { tag: TAGS[i], size, depth: TEAM_SIZES.indexOf(size), publishedUrl: null, seats: [] };
       team.seats.push(newSeat(run, team, { path: "r", parent: null, level: 0, title: "lead", prompt }));
       run.teams.push(team);
     }

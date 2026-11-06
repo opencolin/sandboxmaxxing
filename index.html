@@ -983,12 +983,12 @@ build a habit tracker with streaks</pre>
       </div>
       <div class="dp-scale-panel" id="dpScalePanel" hidden>
         <div class="build-scale-group">
-          <span class="mx-ctl-label" title="A team starts as one agent; agents split work into sub-agents up to this many">Max agents / team</span>
+          <span class="mx-ctl-label" title="A team starts as one agent, and each agent may split its work into up to 4 sub-agents: 5 agents is one level, 21 is two, 85 is three">Agents / team</span>
           <div class="mx-seg" id="dpAgents">
             <button class="on" onclick="dpSetSize(1,this)">1</button>
-            <button onclick="dpSetSize(4,this)">4</button>
-            <button onclick="dpSetSize(12,this)">12</button>
-            <button onclick="dpSetSize(24,this)">24</button>
+            <button onclick="dpSetSize(5,this)">5</button>
+            <button onclick="dpSetSize(21,this)">21</button>
+            <button onclick="dpSetSize(85,this)">85</button>
           </div>
         </div>
         <div class="build-scale-group">
@@ -1101,12 +1101,12 @@ tenki sandbox ssh --session my-box</div>
 
       <div class="mx-controls">
         <div>
-          <div class="mx-ctl-label" title="A team starts as one agent; agents split work into sub-agents up to this many">Max agents / team</div>
+          <div class="mx-ctl-label" title="A team starts as one agent, and each agent may split its work into up to 4 sub-agents: 5 agents is one level, 21 is two, 85 is three">Agents / team</div>
           <div class="mx-seg" id="mxSizes">
             <button onclick="mxSetSize(1,this)">1</button>
-            <button class="on" onclick="mxSetSize(4,this)">4</button>
-            <button onclick="mxSetSize(12,this)">12</button>
-            <button onclick="mxSetSize(24,this)">24</button>
+            <button class="on" onclick="mxSetSize(5,this)">5</button>
+            <button onclick="mxSetSize(21,this)">21</button>
+            <button onclick="mxSetSize(85,this)">85</button>
           </div>
         </div>
         <div>
@@ -1511,7 +1511,7 @@ function buildInSandbox(btn) {
   openTerminal(buildAgent, btn, prompt);
 }
 
-/* ---- deploy-page sandboxmaxxing: Agents (1/4/12) × Teams (1/2/4-arena) ----
+/* ---- deploy-page sandboxmaxxing: Agents (pyramid of 1/5/21/85) × Teams (1/2) ----
    A single build scales from one sandbox (1 agent, Solo — today's flow) up to a
    full competitive arena. When agents>1 or teams>1, Build routes to /api/maxx. */
 const dp = { size: 1, teams: 1, mode: 'free', provider: 'aisa' };
@@ -1526,7 +1526,7 @@ function dpSetProvider(p) {
   dpSync();
 }
 // Every build runs through the arena, Solo/1 included: a single agent gets the
-// same on-page, click-to-watch view as a 24-agent run instead of a popup window.
+// same on-page, click-to-watch view as an 85-agent run instead of a popup window.
 function dpMaxxMode() { return true; }
 function dpToggleScale(force) {
   const panel = document.getElementById('dpScalePanel'), t = document.getElementById('dpScaleToggle');
@@ -1535,7 +1535,7 @@ function dpToggleScale(force) {
   t.setAttribute('aria-expanded', open ? 'true' : 'false');
 }
 function dpScaleSummary() {
-  const agents = dp.size === 1 ? '1 agent' : 'up to ' + dp.size + ' agents';
+  const agents = dp.size === 1 ? '1 agent' : 'pyramid of ' + dp.size;
   return dp.teams > 1 ? `${dp.teams} teams × ${agents}` : `${agents} · Solo`;
 }
 function dpSegOn(btn) { [...btn.parentElement.children].forEach(c => c.classList.toggle('on', c === btn)); }
@@ -2438,7 +2438,7 @@ requestAnimationFrame(frame);
 
 /* ================= sandboxmaxxing ================= */
 const MX_API = '/api/maxx';
-const mx = { size: 4, mode: 'free', compete: false, runId: null, poll: null, started: 0, inited: false, view: 'theater', playing: null, railSig: '' };
+const mx = { size: 5, mode: 'free', compete: false, runId: null, poll: null, started: 0, inited: false, view: 'theater', playing: null, railSig: '' };
 
 async function mxInit() {
   if (mx.inited) return; mx.inited = true;

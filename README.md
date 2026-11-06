@@ -25,7 +25,7 @@ the shared base and every team iterates on it.
 - **Theater view** — one live agent terminal plus a rail of every seat; click to switch, type to steer
 - **A/B arena** — two teams build the same brief; a judge scores them, or you decide
 - **Iterative rounds** — pick a winner and its code is copied over every other sandbox, with your feedback, and they all improve it
-- **1 / 4 / 12 / 24 agents** per team
+- **Agent pyramids of 1 / 5 / 21 / 85** per team (a lead that splits work by up to 4, 0–3 levels deep)
 - **Live deliverables** — every agent publishes to a real URL and the results embed side by side
 
 ## Why sandboxes, not git worktrees
