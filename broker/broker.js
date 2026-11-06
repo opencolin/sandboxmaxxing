@@ -784,8 +784,8 @@ async function relay(req, res, seg, search) {
   if (!entry || !tokenEq(tok, entry.relayToken)) return json(res, 401, { error: "unauthorized" });
   // Token is revoked from relayTokens at destroy/reap, so a live token => a live
   // session; no per-request client.get() on this hot path.
-  if ((entry.relayCalls || 0) >= MAX_RELAY_CALLS) return json(res, 429, { error: "relay_quota" });
-  if ((entry.relayInFlight || 0) >= MAX_RELAY_INFLIGHT) return json(res, 429, { error: "relay_concurrency" });
+  if ((entry.relayCalls || 0) >= MAX_RELAY_CALLS) { log("relay_refused", { id, why: "quota" }); return json(res, 429, { error: "relay_quota" }); }
+  if ((entry.relayInFlight || 0) >= MAX_RELAY_INFLIGHT) { log("relay_refused", { id, why: "concurrency" }); return json(res, 429, { error: "relay_concurrency" }); }
 
   // Path allow-list (mirrors EXPOSABLE_PORTS): only the endpoints the demo needs.
   let parts = seg.slice(2);
@@ -890,6 +890,13 @@ async function relay(req, res, seg, search) {
         return;
       }
 
+      // A failed model call would otherwise show only as an agent going quiet.
+      if ((ures.statusCode || 502) >= 400) {
+        if (ures.statusCode === 402) maxx.noteOutOfCredit(id);
+        let head = "";
+        ures.on("data", (c) => { if (head.length < 300) head += c.toString("utf8"); });
+        ures.on("end", () => log("relay_upstream_error", { id, upstream: seg[1], status: ures.statusCode, body: head.slice(0, 300) }));
+      }
       res.writeHead(ures.statusCode || 502, out);
       res.flushHeaders?.();
       res.socket?.setNoDelay(true); ures.socket?.setNoDelay(true);
@@ -902,7 +909,7 @@ async function relay(req, res, seg, search) {
   // socket-inactivity timer and would kill a legitimately quiet stream).
   const hdrTimer = setTimeout(() => ureq.destroy(new Error("upstream_header_timeout")), RELAY_HEADER_TIMEOUT_MS);
   const capTimer = setTimeout(() => ureq.destroy(new Error("stream_cap")), RELAY_STREAM_CAP_MS);
-  ureq.on("error", () => { done(); if (!res.headersSent) json(res, 502, { error: "upstream_failed" }); else res.destroy(); });
+  ureq.on("error", (e) => { log("relay_upstream_failed", { id, upstream: seg[1], message: e.message }); done(); if (!res.headersSent) json(res, 502, { error: "upstream_failed" }); else res.destroy(); });
   res.on("close", () => { if (!res.writableEnded) ureq.destroy(); done(); });  // closed tab => stop upstream
   ureq.end(bodyBuf);
 }

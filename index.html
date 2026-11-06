@@ -1166,6 +1166,7 @@ tenki sandbox ssh --session my-box</div>
         <button class="btn btn-primary" id="mxNew" onclick="mxNewMachine()" style="padding:9px 18px;font-size:13px;">New Machine</button>
       </div>
     </div>
+    <div id="mxNotice" class="mono" style="display:none;border:1px solid #5a2a22;border-radius:12px;background:#140a08;padding:12px 16px;margin-bottom:14px;font-size:13px;line-height:1.5;color:#e0906c;">The AI model provider ran out of credit, so these agents can’t think. Start again with a different provider under Deploy, or try later.</div>
     <div id="mxVerdict" style="display:none;border:1px solid #1e1e1e;border-radius:14px;background:#0a0a0a;padding:16px 20px;margin-bottom:18px;">
       <div class="panel-label" style="margin-bottom:6px;">Judge verdict</div>
       <div id="mxVerdictText" style="font-size:14px;line-height:1.55;color:#c4c4c4;"></div>
@@ -2572,6 +2573,7 @@ function mxShowEmpty() {
   document.getElementById('mxPushed').textContent = '0';
   document.getElementById('mxStop').style.display = 'none';
   document.getElementById('mxVerdict').style.display = 'none';
+  document.getElementById('mxNotice').style.display = 'none';
   const rEl = document.getElementById('mxRenders'); rEl.style.display = 'none'; rEl.innerHTML = '';
   document.getElementById('mxRail').innerHTML = '<div class="mx-rail-empty">No machines yet.</div>';
   document.getElementById('mxTeams').innerHTML = '';
@@ -3119,6 +3121,7 @@ function mxRender(run) {
   }
 
   mx.lastRun = run;
+  document.getElementById('mxNotice').style.display = run.modelOut ? 'block' : 'none';
   if (mx.view === 'theater') { mxRailRender(run); mxEnsureTerminal(); }
 
   // teams

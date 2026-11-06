@@ -693,6 +693,14 @@ export function createMaxx({ client, tracked, saveState, indexRelay, log, json, 
     json(res, 404, { error: "seat_not_found" }); return null;
   }
   const childrenOf = (team, seat) => team.seats.filter((s) => s.parent === seat.path);
+  // The model provider refused a seat for lack of credit: say so on the run, since all
+  // anyone would otherwise see is agents going quiet.
+  function noteOutOfCredit(sessionId) {
+    for (const r of Object.values(runs)) if (!r.modelOut && r.teams.some((t) => t.seats.some((s) => s.id === sessionId))) {
+      r.modelOut = true; save();
+      log("maxx_model_out_of_credit", { runId: r.id, provider: r.provider });
+    }
+  }
   const slug = (t) => String(t).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 32) || "part";
   const partDir = (child) => `parts/${child.path.split(".").pop()}-${slug(child.title)}`;
 
@@ -874,7 +882,7 @@ export function createMaxx({ client, tracked, saveState, indexRelay, log, json, 
 
   const publicRun = (r) => ({
     id: r.id, template: r.template, state: r.state, mode: r.mode, compete: r.compete,
-    harness: r.harness ?? "opencode", provider: r.provider ?? null, emotion: r.emotion ?? "none",
+    harness: r.harness ?? "opencode", provider: r.provider ?? null, emotion: r.emotion ?? "none", modelOut: !!r.modelOut,
     round: r.round ?? 1, pickedWinner: r.pickedWinner ?? null,
     createdAt: r.createdAt, deadline: r.deadline, prompt: r.prompt, repoUrl: r.repoUrl ?? null, error: r.error ?? null,
     verdict: r.verdict ?? null,
@@ -1274,5 +1282,5 @@ export function createMaxx({ client, tracked, saveState, indexRelay, log, json, 
     }
   }
 
-  return { start, get, stop, watch, say, pick, split, wait, report, notifyExpose, sweep, gallery, warmVisit, warmGet };
+  return { start, get, stop, watch, say, pick, split, wait, report, notifyExpose, sweep, gallery, warmVisit, warmGet, noteOutOfCredit };
 }
