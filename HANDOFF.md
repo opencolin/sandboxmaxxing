@@ -275,8 +275,12 @@ Machines run in the **visitor's** workspace on their balance, so `POST /api/maxx
 - **Machines** boot the public image `03q08p/agentcamp-golden:v2026-10-14` (`MAXX_OWN_IMAGE`) in
   ~1s with tmux and every agent installed; its floor is 2 vCPU / 4 GiB, so that is what visitors
   pay for per seat. The Access machine now starts on Start, not on opening Deploy.
-- **Shipped apps** aren't sticky on a visitor's balance: they stay up 2 hours (`OWN_APP_MS`).
-  Tenki rejects `maxDurationMs` unless `sticky` is set in the same update.
+- **Machines terminate when done.** `killSeat` drives `seat.machine` (booting, up, terminating,
+  terminated) and confirms the machine is gone. Sub-agents end on `tenki-report`; everything else
+  on a team ends when its lead ships; a shipped lead stays up `MAXX_SHIPPED_MINUTES` (30), then
+  ends. `idleSweep` catches agents that stop without saying so: a tmux screen unchanged for 3
+  minutes hands a sub-agent's work to its parent and ends a stalled lead's run. Tenki rejects
+  `maxDurationMs` unless `sticky` is set in the same update.
 - **The warm pool is off** (`MAXX_WARM_POOL=0`): there are no house machines left to warm.
 - **Model calls still go through the house relay**, so claude and codex tokens are on our AISA key.
 

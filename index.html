@@ -575,7 +575,7 @@
   .mx-pyr-hint { position: absolute; left: 16px; bottom: 12px; font-size: 11.5px; color: #5a5a5a; pointer-events: none; }
   .mx-pyr-tip { position: absolute; max-width: 280px; padding: 8px 10px; border: 1px solid #2a2a2a; border-radius: 8px; background: rgba(10, 10, 10, .94);
                 font-size: 11.5px; line-height: 1.5; color: #c4c4c4; pointer-events: none; white-space: pre-wrap; }
-  @media (max-width: 640px) { .mx-pyr { height: 400px; } }
+  @media (max-width: 640px) { .mx-pyr { height: 400px; } #dpAgents, #mxSizes { flex-wrap: wrap; border-radius: 14px; } }
   .mx-team { border: 1px solid #222; border-radius: 16px; background: #070707; padding: 16px; }
   .mx-team.win { border-color: rgba(var(--sand-rgb),.5); background: #0c0a06; }
   .mx-team-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
@@ -985,10 +985,10 @@ build a habit tracker with streaks</pre>
         <div class="build-scale-group">
           <span class="mx-ctl-label" title="A team starts as one agent, and each agent may split its work into up to 4 sub-agents: 5 agents is one level, 21 is two, 85 is three">Agents / team</span>
           <div class="mx-seg" id="dpAgents">
-            <button class="on" onclick="dpSetSize(1,this)">1</button>
-            <button onclick="dpSetSize(5,this)">5</button>
-            <button onclick="dpSetSize(21,this)">21</button>
-            <button onclick="dpSetSize(85,this)">85</button>
+            <button class="on" onclick="dpSetSize(1,this)" title="1 agent">1 agent</button>
+            <button onclick="dpSetSize(5,this)" title="5 agents">2 level pyramid</button>
+            <button onclick="dpSetSize(21,this)" title="21 agents">3 level pyramid</button>
+            <button onclick="dpSetSize(85,this)" title="85 agents">4 level pyramid</button>
           </div>
         </div>
         <div class="build-scale-group">
@@ -1103,10 +1103,10 @@ tenki sandbox ssh --session my-box</div>
         <div>
           <div class="mx-ctl-label" title="A team starts as one agent, and each agent may split its work into up to 4 sub-agents: 5 agents is one level, 21 is two, 85 is three">Agents / team</div>
           <div class="mx-seg" id="mxSizes">
-            <button onclick="mxSetSize(1,this)">1</button>
-            <button class="on" onclick="mxSetSize(5,this)">5</button>
-            <button onclick="mxSetSize(21,this)">21</button>
-            <button onclick="mxSetSize(85,this)">85</button>
+            <button onclick="mxSetSize(1,this)" title="1 agent">1 agent</button>
+            <button class="on" onclick="mxSetSize(5,this)" title="5 agents">2 level pyramid</button>
+            <button onclick="mxSetSize(21,this)" title="21 agents">3 level pyramid</button>
+            <button onclick="mxSetSize(85,this)" title="85 agents">4 level pyramid</button>
           </div>
         </div>
         <div>
@@ -1193,10 +1193,10 @@ tenki sandbox ssh --session my-box</div>
     </div>
     <div id="mxTeams" style="display:none;gap:16px;align-items:start;"></div>
     <div style="display:flex;align-items:center;gap:22px;margin-top:22px;font-size:12px;color:#7c7c7c;flex-wrap:wrap;">
-      <span style="display:inline-flex;align-items:center;gap:7px;"><span class="mx-dot running"></span> building</span>
-      <span style="display:inline-flex;align-items:center;gap:7px;"><span class="mx-dot pending"></span> starting</span>
-      <span style="display:inline-flex;align-items:center;gap:7px;"><span class="mx-dot published"></span> shipped</span>
-      <span style="display:inline-flex;align-items:center;gap:7px;color:var(--sand);"><span style="width:9px;height:9px;border:1px solid rgba(var(--sand-rgb),.6);border-radius:3px;"></span> architect · strongest model</span>
+      <span style="display:inline-flex;align-items:center;gap:7px;"><span style="width:9px;height:9px;border-radius:2px;background:#fff;"></span> starting</span>
+      <span style="display:inline-flex;align-items:center;gap:7px;"><span style="width:9px;height:9px;border-radius:2px;background:#3ecf6a;"></span> running</span>
+      <span style="display:inline-flex;align-items:center;gap:7px;"><span style="width:9px;height:9px;border-radius:2px;background:#f0c83c;"></span> terminating</span>
+      <span style="display:inline-flex;align-items:center;gap:7px;"><span style="width:9px;height:9px;border-radius:2px;background:#e04848;"></span> terminated</span>
       <span style="margin-left:auto;color:#6a6a6a;">seats run headless — click <span style="color:var(--sand);">watch</span> to open one live (uses one preview URL)</span>
     </div>
   </div>
@@ -1535,7 +1535,7 @@ function dpToggleScale(force) {
   t.setAttribute('aria-expanded', open ? 'true' : 'false');
 }
 function dpScaleSummary() {
-  const agents = dp.size === 1 ? '1 agent' : 'pyramid of ' + dp.size;
+  const agents = { 1: '1 agent', 5: '2 level pyramid', 21: '3 level pyramid', 85: '4 level pyramid' }[dp.size];
   return dp.teams > 1 ? `${dp.teams} teams × ${agents}` : `${agents} · Solo`;
 }
 function dpSegOn(btn) { [...btn.parentElement.children].forEach(c => c.classList.toggle('on', c === btn)); }
@@ -2631,7 +2631,8 @@ async function mxTick() {
     const run = await r.json();
     mxRender(run);
     if (['ended', 'stopped', 'released'].includes(run.state)) {
-      clearInterval(mx.poll);
+      // Keep polling until every machine is gone, so the last ones are seen to turn red.
+      if (!(run.teams || []).some(t => t.seats.some(x => x.machine !== 'terminated'))) clearInterval(mx.poll);
       const shipped = (run.teams || []).map(t => t.publishedUrl).filter(Boolean);
       if (!run.verdict) {
         const v = document.getElementById('mxVerdict'); v.style.display = 'block';
@@ -2663,7 +2664,7 @@ function mxSeatCard(s, i, team, terminal) {
       : `<span class="mx-watch off">—</span>`;
   const tip = mxEsc(s.answer || '');
   return `<div class="mx-seat${lead ? ' lead' : ''}" style="margin-left:${(s.level || 0) * 14}px;"${tip ? ` title="${tip}"` : ''}>
-    <div class="mx-seat-top"><span class="mx-dot ${st}"></span><span class="mx-seat-role">${mxSeatName(s)}</span></div>
+    <div class="mx-seat-top"><span class="mx-dot" style="background:${(MX_MACHINE[s.machine] || MX_MACHINE.up).css}"></span><span class="mx-seat-role">${mxSeatName(s)}</span></div>
     <div class="mx-seat-model">${s.model || ''}</div>
     <div class="mx-seat-foot"><span class="mx-seat-state" style="color:${stColor}">${st}</span>${watch}</div>
   </div>`;
@@ -2704,9 +2705,16 @@ function mxSetView(v, btn) {
    Slots the team may still fill are faint outlines, so the whole shape is there
    from the first second and fills in as machines start. */
 const PYR_RISE = 1.75;           // height of one level
-const PYR = { yaw: 0.65, pitch: 0.3, drag: null, hover: null, raf: 0, ready: false, nodes: [], last: 0, sand: [217, 201, 163] };
-const PYR_RGB = { running: [62, 207, 106], RUNNING: [62, 207, 106], waiting: [108, 182, 224], done: [150, 150, 150], failed: [224, 108, 108], stopped: [84, 84, 84], ended: [84, 84, 84] };
+const PYR = { yaw: 0.65, pitch: 0.3, drag: null, hover: null, raf: 0, ready: false, nodes: [], last: 0, born: new Map() };
+// A machine's life: black to white while it boots, green while it runs, yellow while it
+// terminates, red once it's gone.
+const PYR_RGB = { up: [62, 207, 106], terminating: [240, 200, 60], terminated: [224, 72, 72] };
+const PYR_BOOT_MS = 5000;
 const PYR_STILL = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const MX_MACHINE = {
+  booting: { label: 'starting', css: '#fff' }, up: { label: 'running', css: '#3ecf6a' },
+  terminating: { label: 'terminating', css: '#f0c83c' }, terminated: { label: 'terminated', css: '#e04848' },
+};
 function pyrCell(path) {
   const parts = String(path).split('.').slice(1).map(Number);
   let x = 0, z = 0;
@@ -2723,9 +2731,12 @@ function pyrSlots(size) {
     for (let c = 0; c < 4 && out.length < size; c++) out.push(out[i] + '.' + c);
   return out;
 }
-function pyrColor(state) {
-  if (state === 'shipped' || state === 'published' || state === 'pending' || state === 'starting') return PYR.sand;
-  return PYR_RGB[state] || PYR_RGB.stopped;
+function pyrColor(n, t) {
+  if (n.machine !== 'booting') return PYR_RGB[n.machine] || PYR_RGB.terminated;
+  const key = mx.runId + '/' + n.team + '/' + n.seat.path;
+  if (!PYR.born.has(key)) PYR.born.set(key, t);
+  const v = Math.round(255 * Math.min(1, (t - PYR.born.get(key)) / PYR_BOOT_MS));
+  return [v, v, v];
 }
 function pyrPoint(v, o) {        // rotate about the pyramid's axis, then project
   const cy = Math.cos(PYR.yaw), sy = Math.sin(PYR.yaw), cp = Math.cos(PYR.pitch), sp = Math.sin(PYR.pitch);
@@ -2738,8 +2749,8 @@ function pyrCube(ctx, n, o, t) {
   const h = n.level ? 0.3 : 0.38, c = n.c, P = [];
   for (const [dx, dy, dz] of [[-1, -1, -1], [1, -1, -1], [1, -1, 1], [-1, -1, 1], [-1, 1, -1], [1, 1, -1], [1, 1, 1], [-1, 1, 1]])
     P.push(pyrPoint([c.x + dx * h, c.y + dy * h, c.z + dz * h], o));
-  const pulse = n.seat && (n.state === 'pending' || n.state === 'starting') ? 0.45 + 0.4 * Math.sin(t / 220) : 1;
-  const rgb = n.seat ? pyrColor(n.state) : null;
+  const pulse = n.machine === 'terminating' ? 0.85 + 0.15 * Math.sin(t / 160) : 1;
+  const rgb = n.seat ? pyrColor(n, t) : null;
   const mid = pyrPoint([c.x, c.y, c.z], o)[2];
   for (const f of PYR_FACES) {
     const [a, b, d, e] = f.slice(0, 4).map(i => P[i]);
@@ -2749,7 +2760,8 @@ function pyrCube(ctx, n, o, t) {
       const m = f[4];
       ctx.fillStyle = `rgba(${rgb[0] * m | 0},${rgb[1] * m | 0},${rgb[2] * m | 0},${pulse})`;
       ctx.fill();
-      ctx.strokeStyle = n === PYR.hover ? '#fff' : 'rgba(0,0,0,.45)';
+      // A cube just starting is black on black: its edges are what show it.
+      ctx.strokeStyle = n === PYR.hover ? '#fff' : n.machine === 'booting' ? 'rgba(255,255,255,.4)' : 'rgba(0,0,0,.45)';
       ctx.lineWidth = n === PYR.hover ? 1.6 : 1;
     } else {
       ctx.strokeStyle = n === PYR.hover ? 'rgba(255,255,255,.5)' : 'rgba(255,255,255,.17)';
@@ -2770,7 +2782,6 @@ function pyrDraw(t) {
   ctx.clearRect(0, 0, w, hgt);
   const run = mx.lastRun, count = document.getElementById('mxPyrCount');
   if (!run) { count.textContent = 'No machines running'; PYR.nodes = []; return; }
-  const terminal = ['ended', 'stopped', 'released'].includes(run.state);
   const teams = run.teams || [], nodes = [], lines = [];
   teams.forEach((team, ti) => {
     const seats = team.seats || [], used = new Set(seats.map(s => s.path)), size = Math.max(team.size || 1, seats.length);
@@ -2781,8 +2792,7 @@ function pyrDraw(t) {
     const o = { cx: slot * (ti + 0.5), cy: hgt / 2 + 12, scale: fit, midY: tall / 2 };
     for (const s of seats) {
       const c = pyrCell(s.path);
-      const state = terminal && !['shipped', 'published', 'done', 'failed'].includes(s.state) ? 'stopped' : (s.state || 'pending');
-      nodes.push({ seat: s, team: team.tag, state, c, level: c.level, o });
+      nodes.push({ seat: s, team: team.tag, machine: s.machine || 'up', c, level: c.level, o });
       if (s.parent) lines.push([pyrCell(s.parent), c, o]);
     }
     for (const path of free) { const c = pyrCell(path); nodes.push({ seat: null, team: team.tag, path, c, level: c.level, o }); }
@@ -2797,8 +2807,9 @@ function pyrDraw(t) {
   for (const n of nodes) pyrCube(ctx, n, n.o, t);
   PYR.nodes = nodes;
   count.textContent = teams.map(tm => {
-    const n = (tm.seats || []).length, m = Math.max(tm.size || 1, n);
-    return (teams.length > 1 ? `Team ${tm.tag}: ` : '') + `${n} of ${m} machine${m === 1 ? '' : 's'} started`;
+    const seats = tm.seats || [], n = seats.length, m = Math.max(tm.size || 1, n);
+    const gone = seats.filter(s => s.machine === 'terminated').length, live = seats.filter(s => s.machine === 'up').length;
+    return (teams.length > 1 ? `Team ${tm.tag}: ` : '') + `${n} of ${m} started · ${live} running · ${gone} terminated`;
   }).join('   ·   ');
 }
 function pyrFrame(t) {
@@ -2820,7 +2831,7 @@ function pyrTip(n, x, y) {
   PYR.hover = n;
   if (!n) { tip.hidden = true; return; }
   const s = n.seat;
-  tip.textContent = s ? `${s.title || s.role} · ${n.state}\n${s.path} · team ${n.team}${s.model ? '\n' + s.model : ''}${s.answer ? '\n' + s.answer.slice(0, 160) : ''}`
+  tip.textContent = s ? `${s.title || s.role} · ${MX_MACHINE[n.machine].label}\n${s.path} · team ${n.team}${s.model ? '\n' + s.model : ''}${s.answer ? '\n' + s.answer.slice(0, 160) : ''}`
                       : `Empty slot · ${n.path}\nStarts if an agent splits`;
   tip.hidden = false;
   const box = tip.parentElement.getBoundingClientRect();
@@ -2831,8 +2842,6 @@ function pyrStart() {
   const cv = document.getElementById('mxPyrCanvas');
   if (!PYR.ready) {
     PYR.ready = true;
-    const rgb = getComputedStyle(document.documentElement).getPropertyValue('--sand-rgb').split(',').map(Number);
-    if (rgb.length === 3 && rgb.every(Number.isFinite)) PYR.sand = rgb;
     cv.addEventListener('pointerdown', e => { PYR.drag = { x: e.clientX, y: e.clientY, yaw: PYR.yaw, pitch: PYR.pitch, moved: false }; cv.setPointerCapture(e.pointerId); });
     cv.addEventListener('pointermove', e => {
       const d = PYR.drag;
@@ -2845,7 +2854,7 @@ function pyrStart() {
       const d = PYR.drag; PYR.drag = null;
       if (!d || d.moved) return;
       const { n, x, y } = pyrPick(e);
-      if (n && n.seat && !['done', 'failed', 'stopped', 'ended'].includes(n.state)) {
+      if (n && n.seat && (n.machine === 'up' || n.machine === 'booting')) {
         mxSetView('theater', document.querySelectorAll('#mxViewTabs button')[1]);
         mxPlay(n.team, n.seat.role, null);
       } else pyrTip(n, x, y);
@@ -2877,7 +2886,7 @@ function mxRailRender(run) {
       // the boot, then the agent. Only failed seats and finished runs stay disabled.
       // A sub-agent that reported has handed its work up and its machine is gone.
       const pickable = !terminal && st !== 'failed' && st !== 'done';
-      const dotColor = { running: '#3ecf6a', RUNNING: '#3ecf6a', waiting: '#6cb6e0', published: 'var(--sand)', shipped: 'var(--sand)', failed: '#e06c6c' }[st] || '#6a6a6a';
+      const dotColor = (MX_MACHINE[seat.machine] || MX_MACHINE.up).css;
       const on = mx.playing === key;
       cards.push(
         `<button class="mx-side${on ? ' on' : ''}" onclick="mxPlay('${t.tag}','${seat.role}',this)"${pickable ? '' : ' disabled style="opacity:.5;cursor:default;"'}>
