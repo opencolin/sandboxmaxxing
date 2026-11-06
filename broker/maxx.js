@@ -1044,8 +1044,11 @@ export function createMaxx({ client, tracked, saveState, indexRelay, log, json, 
   }
 
   // Agents finish without saying so, or die: told to report, one may just sit at its
-  // prompt. An unchanged screen means nothing is happening (a working agent's timer
-  // ticks), so hand a sub-agent's work to its parent, and end a run whose lead stopped.
+  // prompt. So hand a sub-agent's work to its parent, and end a run whose lead stopped.
+  // A frozen screen alone proves nothing: Claude's stops updating during one long model
+  // call. An agent is idle only if its screen is frozen AND it has no call in flight and
+  // no successful call for as long. Failed calls don't count, or a 402 retry loop would
+  // look alive. Opencode's free models bypass the relay, so only its screen is checked.
   let idleBusy = false;
   async function idleSweep() {
     if (idleBusy) return; idleBusy = true;
@@ -1055,7 +1058,10 @@ export function createMaxx({ client, tracked, saveState, indexRelay, log, json, 
         if (r.state !== "running") continue;
         for (const team of r.teams) for (const seat of team.seats) {
           if (seat.machine !== "up" || seat.published || !seat.id) continue;
-          if (childrenOf(team, seat).some((k) => !DONE.has(k.state))) { seat.screenAt = Date.now(); continue; }
+          const e = tracked[seat.id];
+          if (childrenOf(team, seat).some((k) => !DONE.has(k.state)) || e?.relayInFlight > 0 || Date.now() - (e?.relayOkAt || 0) < SEAT_IDLE_MS) {
+            seat.screenAt = Date.now(); continue;
+          }
           seats.push({ r, team, seat });
         }
       }

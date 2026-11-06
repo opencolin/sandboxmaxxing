@@ -322,7 +322,10 @@ async function terminateSession(id) {
  * to or accepted from browsers — the hosting sandbox is unreachable here. */
 let tracked = {}; // id -> {createdAt, ipHash, terminal, exposeToken, relayToken, ...}
 try { tracked = JSON.parse(fs.readFileSync(STATE_FILE, "utf8")); } catch {}
-for (const [id, v] of Object.entries(tracked)) if (v.own) ownOf.set(id, v.own);
+for (const [id, v] of Object.entries(tracked)) {
+  if (v.own) ownOf.set(id, v.own);
+  v.relayInFlight = 0;      // no call survives a restart, and this must not reset mid-run
+}
 const saveState = () => fs.writeFileSync(STATE_FILE, JSON.stringify(tracked));
 
 // relayToken -> sessionId (the id isn't in the relay URL — kimirelay owns the path).
@@ -333,7 +336,6 @@ const indexRelay = () => {
   relayTokens.clear();
   for (const [id, e] of Object.entries(tracked)) {
     if (e.relayToken) relayTokens.set(e.relayToken, id);
-    e.relayInFlight = 0;
   }
 };
 indexRelay();
@@ -890,6 +892,8 @@ async function relay(req, res, seg, search) {
         return;
       }
 
+      // A model call that worked is what proves an agent is alive (see idleSweep).
+      if ((ures.statusCode || 502) < 400) { entry.relayOkAt = Date.now(); ures.on("end", () => { entry.relayOkAt = Date.now(); }); }
       // A failed model call would otherwise show only as an agent going quiet.
       if ((ures.statusCode || 502) >= 400) {
         if (ures.statusCode === 402) maxx.noteOutOfCredit(id);
