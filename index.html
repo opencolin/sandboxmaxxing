@@ -574,10 +574,24 @@
   .mx-pyr { position: relative; height: 540px; margin-bottom: 16px; border: 1px solid #1e1e1e; border-radius: 14px; background: #060606; overflow: hidden; }
   .mx-pyr canvas { display: block; width: 100%; height: 100%; cursor: grab; touch-action: pan-y; }
   .mx-pyr canvas:active { cursor: grabbing; }
-  .mx-pyr-count { position: absolute; left: 16px; top: 13px; font-size: 12.5px; color: #c4c4c4; pointer-events: none; }
+  .mx-pyr-status { position: absolute; left: 16px; top: 13px; max-width: calc(100% - 32px); font-size: 12.5px; line-height: 1.6; color: #c4c4c4; pointer-events: none; }
+  .mx-pyr-status .warn { color: #e04848; }
+  .mx-pyr-status a { margin-left: 10px; color: var(--sand); pointer-events: auto; }
   .mx-pyr-hint { position: absolute; left: 16px; bottom: 12px; font-size: 11.5px; color: #5a5a5a; pointer-events: none; }
   .mx-pyr-tip { position: absolute; max-width: 280px; padding: 8px 10px; border: 1px solid #2a2a2a; border-radius: 8px; background: rgba(10, 10, 10, .94);
                 font-size: 11.5px; line-height: 1.5; color: #c4c4c4; pointer-events: none; white-space: pre-wrap; }
+  .mx-pyr-panel { position: absolute; top: 0; right: 0; bottom: 0; width: 320px; box-sizing: border-box; padding: 16px; overflow-y: auto; border-left: 1px solid #1e1e1e; background: #0a0a0a; font-size: 12.5px; line-height: 1.55; color: #c4c4c4; }
+  .mx-pyr-panel[hidden] { display: none; }
+  .mx-pp-close { position: absolute; top: 10px; right: 10px; width: 28px; height: 28px; border: 0; border-radius: 6px; background: none; color: #8a8a8a; font-size: 17px; cursor: pointer; }
+  .mx-pp-close:hover { background: #1a1a1a; color: #fff; }
+  .mx-pp-name { padding-right: 28px; font-size: 15px; font-weight: 500; color: var(--fg); overflow-wrap: anywhere; }
+  .mx-pp-look { display: flex; align-items: center; gap: 7px; margin-top: 4px; }
+  .mx-pp-facts { margin-top: 12px; color: #8a8a8a; }
+  .mx-pp-watch { margin-top: 12px; padding: 7px 14px; font-size: 12.5px; }
+  .mx-pp-watch[hidden] { display: none; }
+  .mx-pp-head { margin-top: 16px; font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: #6a6a6a; }
+  .mx-pp-body { margin-top: 4px; white-space: pre-wrap; overflow-wrap: anywhere; }
+  @media (max-width: 640px) { .mx-pyr-panel { top: auto; left: 0; width: auto; max-height: 64%; border-left: 0; border-top: 1px solid #1e1e1e; } }
   @media (max-width: 640px) { .mx-pyr { height: 400px; } #dpAgents, #mxSizes { flex-wrap: wrap; border-radius: 14px; } }
   .mx-team { border: 1px solid #222; border-radius: 16px; background: #070707; padding: 16px; }
   .mx-team.win { border-color: rgba(var(--sand-rgb),.5); background: #0c0a06; }
@@ -1200,16 +1214,28 @@ tenki sandbox ssh --session my-box</div>
     </div>
     <div id="mxPyramid" class="mx-pyr" style="display:none;">
       <canvas id="mxPyrCanvas" aria-label="3D pyramid of this run's machines"></canvas>
-      <div class="mx-pyr-count mono" id="mxPyrCount"></div>
-      <div class="mx-pyr-hint mono">drag to rotate · click a machine to watch it</div>
+      <div class="mx-pyr-status mono" id="mxPyrStatus"></div>
+      <div class="mx-pyr-hint mono">drag to rotate · click a machine for details</div>
       <div class="mx-pyr-tip mono" id="mxPyrTip" hidden></div>
+      <aside class="mx-pyr-panel mono" id="mxPyrPanel" aria-label="Agent details" hidden>
+        <button class="mx-pp-close" onclick="pyrSelect()" aria-label="Close">×</button>
+        <div class="mx-pp-name" id="mxPpName"></div>
+        <div class="mx-pp-look"><span class="mx-dot" id="mxPpDot"></span><span id="mxPpLook"></span></div>
+        <div class="mx-pp-facts" id="mxPpFacts"></div>
+        <button class="btn btn-ghost mx-pp-watch" id="mxPpWatch" onclick="pyrWatch()">Watch</button>
+        <div class="mx-pp-head">Task</div>
+        <div class="mx-pp-body" id="mxPpTask"></div>
+        <div id="mxPpReportBox"><div class="mx-pp-head">Report</div><div class="mx-pp-body" id="mxPpReport"></div></div>
+      </aside>
     </div>
     <div id="mxTeams" style="display:none;gap:16px;align-items:start;"></div>
     <div style="display:flex;align-items:center;gap:22px;margin-top:22px;font-size:12px;color:#7c7c7c;flex-wrap:wrap;">
       <span style="display:inline-flex;align-items:center;gap:7px;"><span style="width:9px;height:9px;border-radius:2px;background:#fff;"></span> starting</span>
       <span style="display:inline-flex;align-items:center;gap:7px;"><span style="width:9px;height:9px;border-radius:2px;background:#3ecf6a;"></span> running</span>
+      <span style="display:inline-flex;align-items:center;gap:7px;"><span style="width:9px;height:9px;border-radius:2px;background:#268042;"></span> waiting</span>
       <span style="display:inline-flex;align-items:center;gap:7px;"><span style="width:9px;height:9px;border-radius:2px;background:#f0c83c;"></span> terminating</span>
-      <span style="display:inline-flex;align-items:center;gap:7px;"><span style="width:9px;height:9px;border-radius:2px;background:#e04848;"></span> terminated</span>
+      <span style="display:inline-flex;align-items:center;gap:7px;"><span style="width:9px;height:9px;border-radius:2px;box-sizing:border-box;border:1px solid #9a9a9a;"></span> terminated</span>
+      <span style="display:inline-flex;align-items:center;gap:7px;"><span style="width:9px;height:9px;border-radius:2px;background:#e04848;"></span> problem</span>
       <span style="margin-left:auto;color:#6a6a6a;">seats run headless — click <span style="color:var(--sand);">watch</span> to open one live (uses one preview URL)</span>
     </div>
   </div>
@@ -2521,6 +2547,7 @@ function mxOpenRun(data, promptText, startedAt) {
   mx.starting = false;
   mx.runId = data.id; mx.started = startedAt || Date.now(); mx._rendersSig = '';
   mx.playing = null; mx.railSig = ''; mx.openKey = mx.opening = mx.failedKey = null; mx.lastRun = null;
+  pyrSelect();
   try { sessionStorage.setItem('mxRunId', data.id); } catch {}
   showMaxx();                    // ensure the arena view is on screen (deep path too)
   document.getElementById('mx-launch').style.display = 'none';
@@ -2564,6 +2591,7 @@ function mxShowEmpty() {
   clearInterval(mx.poll);
   mx.runId = null; mx.playing = null; mx.railSig = ''; mx._rendersSig = '';
   mx.openKey = mx.opening = mx.failedKey = null; mx.lastRun = null;
+  pyrSelect();
   document.getElementById('mx-launch').style.display = 'none';
   document.getElementById('mx-arena').style.display = 'block';
   document.getElementById('mxRunLabel').textContent = 'Machines';
@@ -2657,7 +2685,7 @@ async function mxTick() {
     const run = await r.json();
     mxRender(run);
     if (['ended', 'stopped', 'released'].includes(run.state)) {
-      // Keep polling until every machine is gone, so the last ones are seen to turn red.
+      // Keep polling until every machine is gone, so the last ones are seen to go hollow.
       if (!(run.teams || []).some(t => t.seats.some(x => x.machine !== 'terminated'))) clearInterval(mx.poll);
       const shipped = (run.teams || []).map(t => t.publishedUrl).filter(Boolean);
       if (!run.verdict) {
@@ -2690,7 +2718,7 @@ function mxSeatCard(s, i, team, terminal) {
       : `<span class="mx-watch off">—</span>`;
   const tip = mxEsc(s.answer || '');
   return `<div class="mx-seat${lead ? ' lead' : ''}" style="margin-left:${(s.level || 0) * 14}px;"${tip ? ` title="${tip}"` : ''}>
-    <div class="mx-seat-top"><span class="mx-dot" style="background:${(MX_MACHINE[s.machine] || MX_MACHINE.up).css}"></span><span class="mx-seat-role">${mxSeatName(s)}</span></div>
+    <div class="mx-seat-top"><span class="mx-dot" style="${mxDotStyle(s)}"></span><span class="mx-seat-role">${mxSeatName(s)}</span></div>
     <div class="mx-seat-model">${s.temperament ? s.temperament + ' · ' : ''}${s.model || ''}</div>
     <div class="mx-seat-foot"><span class="mx-seat-state" style="color:${stColor}">${st}</span>${watch}</div>
   </div>`;
@@ -2731,16 +2759,32 @@ function mxSetView(v, btn) {
    Slots the team may still fill are faint outlines, so the whole shape is there
    from the first second and fills in as machines start. */
 const PYR_RISE = 1.75;           // height of one level
-const PYR = { yaw: 0.65, pitch: 0.3, drag: null, hover: null, raf: 0, ready: false, nodes: [], last: 0, born: new Map() };
-// A machine's life: black to white while it boots, green while it runs, yellow while it
-// terminates, red once it's gone.
-const PYR_RGB = { up: [62, 207, 106], terminating: [240, 200, 60], terminated: [224, 72, 72] };
+const PYR = { yaw: 0.65, pitch: 0.3, drag: null, hover: null, sel: null, detailSig: '', raf: 0, ready: false, nodes: [], last: 0, born: new Map() };
+// A machine's life: black to white while it boots, green while it runs (dim while it waits
+// on sub-agents), yellow while it terminates, hollow once it's gone. Red is only for problems.
+const PYR_RGB = { up: [62, 207, 106], waiting: [38, 128, 66], terminating: [240, 200, 60], problem: [224, 72, 72] };
 const PYR_BOOT_MS = 5000;
 const PYR_STILL = matchMedia('(prefers-reduced-motion: reduce)').matches;
-const MX_MACHINE = {
-  booting: { label: 'starting', css: '#fff' }, up: { label: 'running', css: '#3ecf6a' },
-  terminating: { label: 'terminating', css: '#f0c83c' }, terminated: { label: 'terminated', css: '#e04848' },
+const MX_PROBLEM = {
+  out_of_credit: 'Out of model credit', failed: 'Failed', stalled: 'Stalled', no_report: 'Stopped without reporting',
+  copy_failed: "Files didn't reach its parent", unfinished: 'Ended before finishing',
 };
+// How an agent looks wherever it appears. A seat's state can be stale once its machine is
+// gone, so problems come first, then the machine, and state last.
+function mxSeatLook(s) {
+  const gone = s.machine === 'terminated', shipped = s.delivered && !s.level;
+  if (s.problem) return { rgb: PYR_RGB.problem, css: '#e04848', hollow: gone, mark: gone ? 'x' : '', label: MX_PROBLEM[s.problem] || 'Problem' };
+  if (gone) return { css: '#9a9a9a', hollow: true, mark: s.delivered ? 'check' : '', label: shipped ? 'Shipped' : s.delivered ? 'Delivered' : 'Terminated' };
+  if (s.machine === 'terminating') return { rgb: PYR_RGB.terminating, css: '#f0c83c', label: 'Terminating' };
+  if (s.machine === 'booting') return { css: '#fff', label: 'Starting' };
+  if (shipped) return { rgb: PYR_RGB.up, css: '#3ecf6a', mark: 'check', label: 'Shipped' };
+  if (s.state === 'waiting') return { rgb: PYR_RGB.waiting, css: '#268042', label: 'Waiting on sub-agents' };
+  return { rgb: PYR_RGB.up, css: '#3ecf6a', label: 'Working' };
+}
+function mxDotStyle(s) {
+  const l = mxSeatLook(s);
+  return l.hollow ? `background:transparent;box-shadow:inset 0 0 0 1.5px ${l.css}` : `background:${l.css}`;
+}
 function pyrCell(path) {
   const parts = String(path).split('.').slice(1).map(Number);
   let x = 0, z = 0;
@@ -2758,7 +2802,7 @@ function pyrSlots(size) {
   return out;
 }
 function pyrColor(n, t) {
-  if (n.machine !== 'booting') return PYR_RGB[n.machine] || PYR_RGB.terminated;
+  if (n.look.rgb) return n.look.rgb;
   const key = mx.runId + '/' + n.team + '/' + n.seat.path;
   if (!PYR.born.has(key)) PYR.born.set(key, t);
   const v = Math.round(255 * Math.min(1, (t - PYR.born.get(key)) / PYR_BOOT_MS));
@@ -2775,8 +2819,9 @@ function pyrCube(ctx, n, o, t) {
   const h = n.level ? 0.3 : 0.38, c = n.c, P = [];
   for (const [dx, dy, dz] of [[-1, -1, -1], [1, -1, -1], [1, -1, 1], [-1, -1, 1], [-1, 1, -1], [1, 1, -1], [1, 1, 1], [-1, 1, 1]])
     P.push(pyrPoint([c.x + dx * h, c.y + dy * h, c.z + dz * h], o));
-  const pulse = n.machine === 'terminating' ? 0.85 + 0.15 * Math.sin(t / 160) : 1;
-  const rgb = n.seat ? pyrColor(n, t) : null;
+  const look = n.look, key = pyrKey(n), lit = key === PYR.hover || key === PYR.sel;
+  const pulse = n.machine === 'terminating' || (look && look.rgb === PYR_RGB.problem) ? 0.85 + 0.15 * Math.sin(t / 160) : 1;
+  const rgb = look && !look.hollow ? pyrColor(n, t) : null;
   const mid = pyrPoint([c.x, c.y, c.z], o)[2];
   for (const f of PYR_FACES) {
     const [a, b, d, e] = f.slice(0, 4).map(i => P[i]);
@@ -2787,16 +2832,30 @@ function pyrCube(ctx, n, o, t) {
       ctx.fillStyle = `rgba(${rgb[0] * m | 0},${rgb[1] * m | 0},${rgb[2] * m | 0},${pulse})`;
       ctx.fill();
       // A cube just starting is black on black: its edges are what show it.
-      ctx.strokeStyle = n === PYR.hover ? '#fff' : n.machine === 'booting' ? 'rgba(255,255,255,.4)' : 'rgba(0,0,0,.45)';
-      ctx.lineWidth = n === PYR.hover ? 1.6 : 1;
+      ctx.strokeStyle = lit ? '#fff' : n.machine === 'booting' ? 'rgba(255,255,255,.4)' : 'rgba(0,0,0,.45)';
+      ctx.lineWidth = lit ? 1.6 : 1;
+    } else if (look) {                                         // hollow: its machine is gone
+      ctx.strokeStyle = lit ? '#fff' : look.mark === 'x' ? look.css : 'rgba(255,255,255,.55)';
+      ctx.lineWidth = lit ? 1.6 : 1;
     } else {
-      ctx.strokeStyle = n === PYR.hover ? 'rgba(255,255,255,.5)' : 'rgba(255,255,255,.17)';
+      ctx.strokeStyle = lit ? 'rgba(255,255,255,.5)' : 'rgba(255,255,255,.14)';
       ctx.lineWidth = 1;
+      ctx.setLineDash([2, 3]);                                 // an empty slot
     }
     ctx.stroke();
+    ctx.setLineDash([]);
   }
   const p = pyrPoint([c.x, c.y, c.z], o);
   n.sx = p[0]; n.sy = p[1]; n.r = h * o.scale * 1.5;
+  if (look && look.mark) {
+    const m = Math.max(3, h * o.scale * 0.5);
+    ctx.beginPath();
+    if (look.mark === 'x') { ctx.moveTo(p[0] - m, p[1] - m); ctx.lineTo(p[0] + m, p[1] + m); ctx.moveTo(p[0] + m, p[1] - m); ctx.lineTo(p[0] - m, p[1] + m); }
+    else { ctx.moveTo(p[0] - m, p[1]); ctx.lineTo(p[0] - m * 0.3, p[1] + m * 0.7); ctx.lineTo(p[0] + m, p[1] - m * 0.7); }
+    ctx.strokeStyle = look.mark === 'x' ? look.css : '#fff';
+    ctx.lineWidth = 1.6;
+    ctx.stroke();
+  }
 }
 function pyrDraw(t) {
   const cv = document.getElementById('mxPyrCanvas');
@@ -2806,19 +2865,22 @@ function pyrDraw(t) {
   const ctx = cv.getContext('2d');
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.clearRect(0, 0, w, hgt);
-  const run = mx.lastRun, count = document.getElementById('mxPyrCount');
-  if (!run) { count.textContent = 'No machines running'; PYR.nodes = []; return; }
+  const run = mx.lastRun;
+  pyrStatus(run);
+  if (!run) { PYR.nodes = []; return; }
   const teams = run.teams || [], nodes = [], lines = [];
   teams.forEach((team, ti) => {
     const seats = team.seats || [], used = new Set(seats.map(s => s.path)), size = Math.max(team.size || 1, seats.length);
     const free = pyrSlots(size).filter(p => !used.has(p)).slice(0, Math.max(0, size - seats.length));
     const depth = Math.max(1, ...seats.concat(free.map(path => ({ path }))).map(s => pyrCell(s.path).level));
-    const span = Math.SQRT2 * depth + 0.9, tall = depth * PYR_RISE, slot = w / teams.length;
+    // The panel covers the right of the canvas, so the pyramid moves over.
+    const shown = PYR.sel && innerWidth > 640 ? w - 320 : w;
+    const span = Math.SQRT2 * depth + 0.9, tall = depth * PYR_RISE, slot = shown / teams.length;
     const fit = Math.min(slot / (2 * span), (hgt - 70) / (tall * Math.cos(PYR.pitch) + 2 * span * Math.sin(PYR.pitch) + 1.2));
     const o = { cx: slot * (ti + 0.5), cy: hgt / 2 + 12, scale: fit, midY: tall / 2 };
     for (const s of seats) {
       const c = pyrCell(s.path);
-      nodes.push({ seat: s, team: team.tag, machine: s.machine || 'up', c, level: c.level, o });
+      nodes.push({ seat: s, team: team.tag, machine: s.machine || 'up', look: mxSeatLook(s), c, level: c.level, o });
       if (s.parent) lines.push([pyrCell(s.parent), c, o]);
     }
     for (const path of free) { const c = pyrCell(path); nodes.push({ seat: null, team: team.tag, path, c, level: c.level, o }); }
@@ -2832,11 +2894,91 @@ function pyrDraw(t) {
   nodes.sort((a, b) => b.depth - a.depth);           // far cubes first
   for (const n of nodes) pyrCube(ctx, n, n.o, t);
   PYR.nodes = nodes;
-  count.textContent = teams.map(tm => {
-    const seats = tm.seats || [], n = seats.length, m = Math.max(tm.size || 1, n);
-    const gone = seats.filter(s => s.machine === 'terminated').length, live = seats.filter(s => s.machine === 'up').length;
-    return (teams.length > 1 ? `Team ${tm.tag}: ` : '') + `${n} of ${m} started · ${live} running · ${gone} terminated`;
-  }).join('   ·   ');
+}
+const mxClock = ms => { const s = Math.max(0, Math.ceil(ms / 1000)); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); };
+// A shipped app's machine stays up for a while, then it's gone.
+function mxAppUp(team) {
+  const host = (team.seats || []).find(s => s.keepUntil);
+  return !!team.publishedUrl && (!host || (host.keepUntil > Date.now() && host.machine !== 'terminated'));
+}
+// Where a team stands, in a line, and whether that's a problem.
+function mxTeamLine(run, team) {
+  const seats = team.seats || [], lead = seats[0], now = Date.now();
+  if (team.publishedUrl) {
+    const host = seats.find(s => s.keepUntil);
+    if (!mxAppUp(team)) return ['Shipped · app has shut down', false];
+    return [host ? `Shipped · app up for ${mxClock(host.keepUntil - now)}` : 'Shipped', false];
+  }
+  if (run.state === 'ended') return [now >= run.deadline ? 'Ran out of time, nothing shipped' : 'Lead stopped, nothing shipped', true];
+  if (run.state === 'stopped' || run.state === 'released') return ['Stopped', false];
+  if (run.state === 'failed') return ['Failed to start', true];
+  if (!lead) return ['Starting', false];
+  const left = run.deadline - now, clock = ` · ${mxClock(left)} left`, late = left < 5 * 60_000;
+  const subs = seats.slice(1), bad = seats.filter(s => s.problem);
+  if (lead.problem) return [`Lead: ${(MX_PROBLEM[lead.problem] || 'problem').toLowerCase()}${clock}`, true];
+  if (bad.length) return [`${bad.length} agent${bad.length === 1 ? ' needs' : 's need'} attention${clock}`, true];
+  const open = subs.filter(s => !['done', 'failed', 'stopped', 'ended'].includes(s.state)).length;
+  if (lead.machine === 'booting') return ['Starting' + clock, late];
+  if (open) return [`Waiting on ${open} of ${subs.length} sub-agents${clock}`, late];
+  const parts = subs.filter(s => s.parent === lead.path).length;
+  if (parts) return [`Lead integrating ${parts} part${parts === 1 ? '' : 's'}${clock}`, late];
+  return [(team.size > 1 ? 'Lead planning the split' : 'Lead working') + clock, late];
+}
+// Runs every frame, but the links are rebuilt only when they change, so one can be clicked.
+function pyrStatus(run) {
+  const box = document.getElementById('mxPyrStatus'), teams = run ? run.teams || [] : [];
+  if (!run) { box.textContent = 'No machines running'; box.dataset.sig = ''; return; }
+  const sig = teams.map(t => t.tag + (mxAppUp(t) ? t.publishedUrl : '')).join('|');
+  if (box.dataset.sig !== sig) {
+    box.dataset.sig = sig;
+    box.innerHTML = teams.map(t => `<div><span></span>${mxAppUp(t) ? `<a href="${mxEsc(t.publishedUrl)}" target="_blank" rel="noopener">Open app ↗</a>` : ''}</div>`).join('');
+  }
+  teams.forEach((t, i) => {
+    const [text, warn] = mxTeamLine(run, t), line = box.children[i].firstChild, full = (teams.length > 1 ? `Team ${t.tag}: ` : '') + text;
+    if (line.textContent !== full) line.textContent = full;
+    line.classList.toggle('warn', warn);
+  });
+}
+// The agent the panel is showing, as of the last poll.
+function pyrSelected() {
+  if (!PYR.sel || !mx.lastRun) return {};
+  const [tag, path] = PYR.sel.split('/'), team = (mx.lastRun.teams || []).find(t => t.tag === tag);
+  return { tag, path, seat: team && (team.seats || []).find(s => s.path === path) };
+}
+function pyrSelect(tag, path) {
+  PYR.sel = tag ? tag + '/' + path : null;
+  PYR.detailSig = '';
+  document.getElementById('mxPyrPanel').hidden = !tag;
+  pyrPanel();
+}
+// Agents write the task and report, so these are set as text, never as HTML.
+function pyrPanel() {
+  const { tag, path, seat: s } = pyrSelected();
+  if (!s) return;
+  const look = mxSeatLook(s), time = s.startedAt ? mxClock((s.endedAt || Date.now()) - s.startedAt) : '';
+  document.getElementById('mxPpName').textContent = s.level ? s.title || s.role : 'Lead';
+  document.getElementById('mxPpDot').style.cssText = mxDotStyle(s);
+  document.getElementById('mxPpLook').textContent = look.label;
+  document.getElementById('mxPpFacts').textContent = [s.temperament, s.model, time && (s.endedAt ? 'took ' : 'running for ') + time].filter(Boolean).join(' · ');
+  document.getElementById('mxPpWatch').hidden = !['up', 'booting'].includes(s.machine);
+  document.getElementById('mxPpReportBox').hidden = !s.level && !s.answer;
+  const sig = PYR.sel + s.state + (s.answer || '').length;
+  if (sig === PYR.detailSig) return;
+  const first = !PYR.detailSig;
+  PYR.detailSig = sig;
+  const task = document.getElementById('mxPpTask'), report = document.getElementById('mxPpReport');
+  if (first) { task.textContent = 'Loading…'; report.textContent = s.answer || 'No report yet.'; }
+  fetch(`${MX_API}/${mx.runId}/seats/${tag}/${path}`).then(r => r.ok ? r.json() : Promise.reject()).then(d => {
+    if (PYR.detailSig !== sig) return;
+    task.textContent = d.task || 'No task recorded.';
+    report.textContent = d.report || 'No report yet.';
+  }).catch(() => { if (PYR.detailSig === sig) task.textContent = "Couldn't load this agent's task."; });
+}
+function pyrWatch() {
+  const { tag, seat } = pyrSelected();
+  if (!seat) return;
+  mxSetView('theater', document.querySelectorAll('#mxViewTabs button')[1]);
+  mxPlay(tag, seat.role, null);
 }
 function pyrFrame(t) {
   PYR.raf = 0;
@@ -2846,6 +2988,7 @@ function pyrFrame(t) {
   pyrDraw(t);
   PYR.raf = requestAnimationFrame(pyrFrame);
 }
+const pyrKey = n => n.team + '/' + (n.seat ? n.seat.path : n.path);
 function pyrPick(e) {
   const r = e.target.getBoundingClientRect(), x = e.clientX - r.left, y = e.clientY - r.top;
   let best = null;
@@ -2854,10 +2997,10 @@ function pyrPick(e) {
 }
 function pyrTip(n, x, y) {
   const tip = document.getElementById('mxPyrTip');
-  PYR.hover = n;
+  PYR.hover = n ? pyrKey(n) : null;
   if (!n) { tip.hidden = true; return; }
   const s = n.seat;
-  tip.textContent = s ? `${s.title || s.role} · ${MX_MACHINE[n.machine].label}\n${s.temperament ? s.temperament + ' · ' : ''}${s.path} · team ${n.team}${s.model ? '\n' + s.model : ''}${s.answer ? '\n' + s.answer.slice(0, 160) : ''}`
+  tip.textContent = s ? `${s.title || s.role} · ${n.look.label}\n${s.temperament ? s.temperament + ' · ' : ''}${s.path} · team ${n.team}${s.model ? '\n' + s.model : ''}${s.answer ? '\n' + s.answer.slice(0, 160) : ''}`
                       : `Empty slot · ${n.path}\nStarts if an agent splits`;
   tip.hidden = false;
   const box = tip.parentElement.getBoundingClientRect();
@@ -2880,12 +3023,11 @@ function pyrStart() {
       const d = PYR.drag; PYR.drag = null;
       if (!d || d.moved) return;
       const { n, x, y } = pyrPick(e);
-      if (n && n.seat && (n.machine === 'up' || n.machine === 'booting')) {
-        mxSetView('theater', document.querySelectorAll('#mxViewTabs button')[1]);
-        mxPlay(n.team, n.seat.role, null);
-      } else pyrTip(n, x, y);
+      if (n && n.seat) { pyrTip(null); pyrSelect(n.team, n.seat.path); }
+      else { pyrSelect(); pyrTip(n, x, y); }
     });
     cv.addEventListener('pointerleave', () => pyrTip(null));
+    document.addEventListener('keydown', e => { if (e.key === 'Escape' && PYR.sel) pyrSelect(); });
     document.addEventListener('visibilitychange', () => { if (!document.hidden && mx.view !== 'theater' && !PYR.raf) PYR.raf = requestAnimationFrame(pyrFrame); });
   }
   pyrDraw(performance.now());
@@ -2899,7 +3041,7 @@ function mxRailRender(run) {
   if (!rail) return;
   const teams = run.teams || [];
   const terminal = ['ended', 'stopped', 'released'].includes(run.state);
-  const sig = teams.map(t => t.tag + ':' + t.seats.map(x => x.role + x.state + (x.terminalUrl ? '1' : '0')).join(',')).join('|') + (mx.playing || '');
+  const sig = teams.map(t => t.tag + ':' + t.seats.map(x => x.role + x.state + x.machine + (x.problem || '') + (x.terminalUrl ? '1' : '0')).join(',')).join('|') + (mx.playing || '');
   if (sig === mx.railSig) return;
   mx.railSig = sig;
   const cards = [];
@@ -2912,7 +3054,6 @@ function mxRailRender(run) {
       // the boot, then the agent. Only failed seats and finished runs stay disabled.
       // A sub-agent that reported has handed its work up and its machine is gone.
       const pickable = !terminal && st !== 'failed' && st !== 'done';
-      const dotColor = (MX_MACHINE[seat.machine] || MX_MACHINE.up).css;
       const on = mx.playing === key;
       cards.push(
         `<button class="mx-side${on ? ' on' : ''}" onclick="mxPlay('${t.tag}','${seat.role}',this)"${pickable ? '' : ' disabled style="opacity:.5;cursor:default;"'}>
@@ -2920,7 +3061,7 @@ function mxRailRender(run) {
            <span class="mx-side-meta">
              <span class="mx-side-role">${mxSeatName(seat)}</span>
              <span class="mx-side-model">${seat.temperament ? seat.temperament + ' · ' : ''}${seat.model || ''}</span>
-             <span class="mx-side-state"><span class="mx-dot" style="background:${dotColor};width:6px;height:6px;"></span>${st} · <span class="mx-side-team">TEAM ${t.tag}</span></span>
+             <span class="mx-side-state"><span class="mx-dot" style="${mxDotStyle(seat)};width:6px;height:6px;"></span>${st} · <span class="mx-side-team">TEAM ${t.tag}</span></span>
            </span>
          </button>`);
     }
@@ -3121,6 +3262,7 @@ function mxRender(run) {
   }
 
   mx.lastRun = run;
+  pyrPanel();
   document.getElementById('mxNotice').style.display = run.modelOut ? 'block' : 'none';
   if (mx.view === 'theater') { mxRailRender(run); mxEnsureTerminal(); }
 

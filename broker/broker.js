@@ -1031,6 +1031,7 @@ http.createServer(async (req, res) => {
       }
       if (req.method === "POST" && seg.length === 2) return await maxx.start(req, res);
       if (req.method === "GET" && seg.length === 3) return await maxx.get(res, seg[2]);
+      if (req.method === "GET" && seg.length === 6 && seg[3] === "seats") return maxx.seatDetail(res, seg[2], seg[4], seg[5]);
       if (req.method === "DELETE" && seg.length === 3) return await maxx.stop(res, seg[2], new URL(req.url, "http://x").searchParams.get("all") === "1");
       if (req.method === "POST" && seg.length === 4 && seg[3] === "watch") return await maxx.watch(req, res, seg[2]);
       if (req.method === "POST" && seg.length === 4 && seg[3] === "say") return await maxx.say(req, res, seg[2]);

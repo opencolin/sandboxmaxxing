@@ -293,10 +293,19 @@ Machines run in the **visitor's** workspace on their balance, so `POST /api/maxx
 ## The 3D pyramid
 
 Machines' **Grid** tab shows each team as a 3D pyramid on a canvas (`pyr*` in `index.html`): one
-cube per agent in a stepped grid of 1, 2×2, 4×4 and 8×8, colored by state, with slots the team
-can still fill as outlines. A seat's `path` gives its cell, so there is no layout state. It
-rotates, drags, and clicking a cube opens that machine in the Theater. Runs with more than one
-agent open on it; a single agent opens on its terminal.
+cube per agent in a stepped grid of 1, 2×2, 4×4 and 8×8, with slots the team can still fill as
+faint dashed outlines. A seat's `path` gives its cell, so there is no layout state. Runs with more
+than one agent open on it; a single agent opens on its terminal.
+
+`mxSeatLook` decides how an agent looks everywhere. A cube fades black to white while starting, is
+bright green while working, dim green while waiting on sub-agents, yellow while terminating and
+hollow once terminated. A check marks work delivered or shipped. Red is only for problems, from the
+broker's `seatProblem`: solid while the machine runs, hollow with an X once it's gone. `stalled`
+means `idleSweep` has nudged the agent and it hasn't moved since, so it lags by up to 3.5 minutes.
+
+The line at the top gives each team's status, time left and Open app link. Clicking a cube opens a
+panel with its task and report, from `GET /api/maxx/:runId/seats/:team/:path`, which stays out of
+the 3-second poll so an 85-agent run doesn't carry them all. Watch opens it in the Theater.
 
 ## Rebuild runbook (the thing you will actually need)
 
