@@ -43,6 +43,12 @@ the whole budget against VM capacity up front. Seats are tree nodes
 (`path` `r`, `r.0`, `r.0.2`, with `parent`, `level`, `title`, `prompt` and `answer`), and
 `seat.role` equals the path, so watch/say still address seats by `{team, role}`.
 
+**Emotion** (None / Low / Med / High on the deploy page) gives each split's four sub-agents one of
+Helen Fisher's temperaments, in split order: Explorer (dopamine), Builder (serotonin), Director
+(testosterone) and Negotiator (estrogen and oxytocin). The level sets how strongly they play it.
+The lead stays neutral, assigns parts to suit, and integrates. It is a prompt, so it shapes how an
+agent works, never whether it finishes and reports.
+
 The seat helpers call `POST /api/maxx/seat/:id/split`, `GET …/wait` and
 `POST …/report`, authenticated with the seat's own expose token (the one
 `tenki-publish` uses), so a seat can only act as itself. In a later round (pick)

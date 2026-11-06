@@ -1001,6 +1001,15 @@ build a habit tracker with streaks</pre>
             <button onclick="dpSetTeams(2,this)">2 · arena</button>
           </div>
         </div>
+        <div class="build-scale-group" id="dpEmotionGroup" style="display:none;">
+          <span class="mx-ctl-label" title="Each split's four sub-agents take Helen Fisher's temperaments: Explorer, Builder, Director and Negotiator. This sets how strongly they play them.">Emotion</span>
+          <div class="mx-seg" id="dpEmotion">
+            <button class="on" onclick="dpSetEmotion('none',this)">None</button>
+            <button onclick="dpSetEmotion('low',this)">Low</button>
+            <button onclick="dpSetEmotion('med',this)">Med</button>
+            <button onclick="dpSetEmotion('high',this)">High</button>
+          </div>
+        </div>
       </div>
       <div id="dpScaleNote" class="mono"></div>
       <div class="prompt-actions">
@@ -1524,7 +1533,7 @@ function buildInSandbox(btn) {
 /* ---- deploy-page sandboxmaxxing: Agents (pyramid of 1/5/21/85) × Teams (1/2) ----
    A single build scales from one sandbox (1 agent, Solo — today's flow) up to a
    full competitive arena. When agents>1 or teams>1, Build routes to /api/maxx. */
-const dp = { size: 1, teams: 1, mode: 'free', provider: 'aisa' };
+const dp = { size: 1, teams: 1, mode: 'free', provider: 'aisa', emotion: 'none' };
 // Picking "opencode" as the provider means the keyless native models, which only
 // the opencode harness can use — so keep the two in sync.
 function dpSetProvider(p) {
@@ -1546,16 +1555,20 @@ function dpToggleScale(force) {
 }
 function dpScaleSummary() {
   const agents = { 1: '1 agent', 5: '2 level pyramid', 21: '3 level pyramid', 85: '4 level pyramid' }[dp.size];
-  return dp.teams > 1 ? `${dp.teams} teams × ${agents}` : `${agents} · Solo`;
+  const feel = dp.size > 1 && dp.emotion !== 'none' ? ` · ${dp.emotion} emotion` : '';
+  return (dp.teams > 1 ? `${dp.teams} teams × ${agents}` : `${agents} · Solo`) + feel;
 }
 function dpSegOn(btn) { [...btn.parentElement.children].forEach(c => c.classList.toggle('on', c === btn)); }
 function dpSetSize(n, btn) { dp.size = n; dpSegOn(btn); dpSync(); }
+function dpSetEmotion(e, btn) { dp.emotion = e; dpSegOn(btn); dpSync(); }
 function dpSetTeams(n, btn) { dp.teams = n; dpSegOn(btn); dpSync(); }
 function dpSetMode(m, btn) { dp.mode = m; dpSegOn(btn); }
 function dpSync() {
   const maxx = dpMaxxMode();
   const sum = document.getElementById('dpScaleSummary');
   if (sum) sum.textContent = dpScaleSummary();
+  // Temperaments belong to sub-agents, so a single agent has no use for it.
+  document.getElementById('dpEmotionGroup').style.display = dp.size > 1 ? '' : 'none';
   const acts = document.querySelector('#view-deploy .prompt-actions');
   // In arena mode Full-Auto is implied and hides. (The harness picker lives in the
   // scale row; the inference toggle lives in 02 Access — the arena ignores it.)
@@ -1581,7 +1594,7 @@ async function dpLaunch() {
   if (mx.starting) return;                  // already requesting one — the screen shows it
   const ta = document.getElementById('promptInput');
   const prompt = ta.value.trim() || ta.getAttribute('placeholder');
-  const body = { prompt, mode: dp.mode, harness: buildAgent, provider: dp.provider };
+  const body = { prompt, mode: dp.mode, harness: buildAgent, provider: dp.provider, emotion: dp.size > 1 ? dp.emotion : 'none' };
   if (dp.teams === 4) body.teams = 4;
   else { body.teams = dp.teams; body.size = dp.size; }
   mxShowStarting(prompt);
@@ -2676,7 +2689,7 @@ function mxSeatCard(s, i, team, terminal) {
   const tip = mxEsc(s.answer || '');
   return `<div class="mx-seat${lead ? ' lead' : ''}" style="margin-left:${(s.level || 0) * 14}px;"${tip ? ` title="${tip}"` : ''}>
     <div class="mx-seat-top"><span class="mx-dot" style="background:${(MX_MACHINE[s.machine] || MX_MACHINE.up).css}"></span><span class="mx-seat-role">${mxSeatName(s)}</span></div>
-    <div class="mx-seat-model">${s.model || ''}</div>
+    <div class="mx-seat-model">${s.temperament ? s.temperament + ' · ' : ''}${s.model || ''}</div>
     <div class="mx-seat-foot"><span class="mx-seat-state" style="color:${stColor}">${st}</span>${watch}</div>
   </div>`;
 }
@@ -2842,7 +2855,7 @@ function pyrTip(n, x, y) {
   PYR.hover = n;
   if (!n) { tip.hidden = true; return; }
   const s = n.seat;
-  tip.textContent = s ? `${s.title || s.role} · ${MX_MACHINE[n.machine].label}\n${s.path} · team ${n.team}${s.model ? '\n' + s.model : ''}${s.answer ? '\n' + s.answer.slice(0, 160) : ''}`
+  tip.textContent = s ? `${s.title || s.role} · ${MX_MACHINE[n.machine].label}\n${s.temperament ? s.temperament + ' · ' : ''}${s.path} · team ${n.team}${s.model ? '\n' + s.model : ''}${s.answer ? '\n' + s.answer.slice(0, 160) : ''}`
                       : `Empty slot · ${n.path}\nStarts if an agent splits`;
   tip.hidden = false;
   const box = tip.parentElement.getBoundingClientRect();
@@ -2904,7 +2917,7 @@ function mxRailRender(run) {
            <span class="mx-side-thumb"><code>${mxEsc((seat.path || seat.role || '').slice(0, 22))}<br>$ ${st === 'waiting' ? 'waiting on sub-agents…' : live ? 'working…' : st === 'pending' ? 'booting…' : st}</code></span>
            <span class="mx-side-meta">
              <span class="mx-side-role">${mxSeatName(seat)}</span>
-             <span class="mx-side-model">${seat.model || ''}</span>
+             <span class="mx-side-model">${seat.temperament ? seat.temperament + ' · ' : ''}${seat.model || ''}</span>
              <span class="mx-side-state"><span class="mx-dot" style="background:${dotColor};width:6px;height:6px;"></span>${st} · <span class="mx-side-team">TEAM ${t.tag}</span></span>
            </span>
          </button>`);

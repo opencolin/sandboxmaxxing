@@ -83,6 +83,19 @@ const JUDGE_MAX_WAIT_MS = 20 * 60_000;   // judge on whatever shipped by here
 // is a full pyramid of some depth: 1, 1+4, 1+4+16, 1+4+16+64 agents for FANOUT 4.
 const FANOUT = Number(process.env.MAXX_FANOUT || 4);
 const TEAM_SIZES = [0, 1, 2, 3].map((d) => Array.from({ length: d + 1 }, (_, i) => FANOUT ** i).reduce((a, b) => a + b));
+// Helen Fisher's four temperaments, one per sub-agent of a split, in split order. The
+// Emotion setting decides how strongly each agent plays its part; "none" leaves them out.
+const TEMPERAMENTS = [
+  { name: "Explorer", chemical: "dopamine", traits: "curious, spontaneous and drawn to novelty, quick to take a risk on a bold idea and bored by the obvious answer" },
+  { name: "Builder", chemical: "serotonin", traits: "calm, orderly and dependable, a careful finisher who trusts what is proven and cares about details and conventions" },
+  { name: "Director", chemical: "testosterone", traits: "analytical, direct and decisive, tough-minded about what matters, and driven to find the system behind the problem" },
+  { name: "Negotiator", chemical: "estrogen and oxytocin", traits: "empathetic, intuitive and imaginative, a big-picture thinker who feels what people will experience and connects ideas" },
+];
+const EMOTION = {
+  low: "Let this temperament gently color your choices. Your work should read as professional, with only a hint of it.",
+  med: "Let this temperament clearly shape your decisions, your priorities, and how you describe your work.",
+  high: "Inhabit this temperament completely. Let strong feelings drive your decisions, argue for what it cares about, and let them show in everything you write.",
+};
 const WAIT_BLOCK_MS = 90_000;            // under the agents' ~2 min tool-call timeout
 const DONE = new Set(["done", "failed", "stopped", "ended"]);
 
@@ -161,6 +174,7 @@ export function createMaxx({ client, tracked, saveState, indexRelay, log, json, 
   function seatDuty(run, team, seat) {
     const isRoot = seat.level === 0;
     const want = seatWants(team, seat);
+    const temperament = seatTemperament(run, seat);
     const lines = [
       isRoot
         ? `You are the lead agent of a pyramid of agents. Build the requested application in /home/tenki/work, make it genuinely good, and get it live. Keep the scope tight enough to actually finish and ship.`
@@ -175,8 +189,12 @@ export function createMaxx({ client, tracked, saveState, indexRelay, log, json, 
       `Run it within your first minute: do not plan the whole build first, since people are watching the machines start. ` +
       `Each sub-agent gets a sandbox of its own, sees ONLY its own prompt (so name its files, interfaces and style, briefly), and works in parallel. ` +
       `tenki-split says how many agents your team has left; if it refuses, do the work yourself. Split once, then keep working on your own part meanwhile.\n` +
+      (EMOTION[run.emotion] ? `Your sub-agents take these temperaments in the order you list them: ${TEMPERAMENTS.slice(0, want).map((t) => t.name).join(", ")}. Give each the part that suits it.\n` : "") +
       `Then run tenki-wait. It returns after about 90 seconds or once every sub-agent has reported, prints each one's summary, and puts its files in /home/tenki/work/parts/<n>-<title>/. ` +
       `Run it again until it says all are done, then integrate the parts into one working result. If a sub-agent fails or stalls, do its part yourself.`);
+    if (temperament) lines.push(
+      `\nYour temperament is the ${temperament.name} (Helen Fisher's ${temperament.chemical} type): ${temperament.traits}. ${EMOTION[run.emotion]} ` +
+      `It changes how you work, never whether you finish: your task still gets done and reported.`);
     if (isRoot) lines.push(
       `\nWhen the app is ready, publish it with these two commands (in this order):\n  tenki-serve ${APP_PORT} /home/tenki/work\n  tenki-publish ${APP_PORT}\n` +
       `Then print the URL it returns. Use tenki-serve rather than starting your own background server — a plain \`nohup ... &\` dies with your shell and the published URL then 502s. ` +
@@ -196,6 +214,9 @@ export function createMaxx({ client, tracked, saveState, indexRelay, log, json, 
     const pool = (seat.share ?? team.size) - 1;
     return Math.max(1, Math.floor(pool / n) + (i < pool % n ? 1 : 0));
   };
+  // The lead stays neutral, since it has to integrate them all.
+  const seatTemperament = (run, seat) =>
+    EMOTION[run.emotion] && seat.level > 0 ? TEMPERAMENTS[Number(seat.path.split(".").pop()) % TEMPERAMENTS.length] : null;
   const newSeat = (run, team, fields) => ({
     ...fields, role: fields.path,
     model: seatModel(team.seats.length, run, TAGS.indexOf(team.tag) * 2),
@@ -853,7 +874,7 @@ export function createMaxx({ client, tracked, saveState, indexRelay, log, json, 
 
   const publicRun = (r) => ({
     id: r.id, template: r.template, state: r.state, mode: r.mode, compete: r.compete,
-    harness: r.harness ?? "opencode", provider: r.provider ?? null,
+    harness: r.harness ?? "opencode", provider: r.provider ?? null, emotion: r.emotion ?? "none",
     round: r.round ?? 1, pickedWinner: r.pickedWinner ?? null,
     createdAt: r.createdAt, deadline: r.deadline, prompt: r.prompt, repoUrl: r.repoUrl ?? null, error: r.error ?? null,
     verdict: r.verdict ?? null,
@@ -864,6 +885,7 @@ export function createMaxx({ client, tracked, saveState, indexRelay, log, json, 
         model: s.model, state: s.state, terminalUrl: s.terminalUrl ?? null, answer: s.answer ? s.answer.slice(0, 600) : null,
         noBalance: s.state === "failed" && noBalance({ message: s.error }),
         machine: s.machine ?? (s.state === "pending" ? "booting" : DONE.has(s.state) ? "terminated" : "up"),
+        temperament: seatTemperament(r, { level: s.level ?? 0, path: s.path ?? "r" })?.name ?? null,
         keepUntil: s.keepUntil ?? null,
       })),
     })),
@@ -886,6 +908,7 @@ export function createMaxx({ client, tracked, saveState, indexRelay, log, json, 
     if (!prompt) return json(res, 400, { error: "prompt_required" });
     const mode = body.mode === "frontier" ? "frontier" : "free";
     const harness = HARNESSES.has(body.harness) ? body.harness : "opencode";
+    const emotion = EMOTION[body.emotion] ? body.emotion : "none";
     // Preferred provider (aisa|openrouter|nebius|opencode). "opencode" means the
     // keyless native models, which only the opencode harness can serve.
     const provider = PROVIDERS.has(body.provider) ? body.provider : "aisa";
@@ -943,7 +966,7 @@ export function createMaxx({ client, tracked, saveState, indexRelay, log, json, 
     const run = runs[runId] = {
       id: runId, template: label, prompt, repoUrl, mode, compete, harness, provider,
       state: "launching", createdAt: Date.now(), deadline: Date.now() + DEFAULT_DEADLINE_MS,
-      verdict: null, teams: [], ...(own ? { own } : {}),
+      verdict: null, teams: [], emotion, ...(own ? { own } : {}),
     };
     for (let i = 0; i < teamCount; i++) {
       const team = { tag: TAGS[i], size, depth: TEAM_SIZES.indexOf(size), publishedUrl: null, seats: [] };
