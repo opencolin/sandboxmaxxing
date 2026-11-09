@@ -1299,7 +1299,18 @@ export function createMaxx({ client, tracked, saveState, indexRelay, log, json, 
       r.round = round;
       r.pickedWinner = tag;
       r.verdict = null;
-      for (const team of r.teams) { team.publishedUrl = null; for (const seat of team.seats) if (seat.state === "shipped") { seat.state = "running"; seat.keepUntil = null; seat.published = false; seat.endedAt = null; } }
+      for (const team of r.teams) {
+        team.publishedUrl = null;
+        for (const seat of team.seats) {
+          if (seat.state === "shipped") { seat.state = "running"; seat.keepUntil = null; seat.published = false; seat.endedAt = null; }
+          // Every lead that carries on starts the round fresh: last round's idle and
+          // credit flags would otherwise mark it stalled, or skip its one nudge.
+          if (!seat.parent && seat.state === "running") {
+            seat.nudged = false; seat.stalledAt = null; seat.screen = null; seat.screenAt = null;
+            seat.noCreditAt = null; seat.startedAt = Date.now();
+          }
+        }
+      }
       r.deadline = Math.max(r.deadline, Date.now() + DEFAULT_DEADLINE_MS);
       save();
       log("maxx_picked", { runId, winner: tag, round, copied, told, feedback: !!feedback });
