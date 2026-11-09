@@ -639,7 +639,7 @@ export function createMaxx({ client, tracked, saveState, indexRelay, log, json, 
       `fi`,
     ];
     await runHeadless(session, body);
-    seat.state = "running"; seat.machine = "up"; seat.terminalUrl = null;
+    seat.state = "running"; seat.machine = "up"; seat.terminalUrl = null; seat.startedAt = Date.now();
     save();
   }
 
@@ -663,6 +663,7 @@ export function createMaxx({ client, tracked, saveState, indexRelay, log, json, 
   // shows: booting, up, terminating (while this runs), terminated. No machine outlives
   // its usefulness, or it idles on someone's balance.
   async function killSeat(seat, delayMs = 0) {
+    seat.endedAt ??= Date.now();
     if (seat.machine === "terminating" || seat.machine === "terminated") return;
     if (!seat.id) { seat.machine = "terminated"; save(); return; }
     seat.machine = "terminating";
@@ -708,9 +709,17 @@ export function createMaxx({ client, tracked, saveState, indexRelay, log, json, 
   // The model provider refused a seat for lack of credit: say so on the run, since all
   // anyone would otherwise see is agents going quiet.
   function noteOutOfCredit(sessionId) {
-    for (const r of Object.values(runs)) if (!r.modelOut && r.teams.some((t) => t.seats.some((s) => s.id === sessionId))) {
-      r.modelOut = true; save();
-      log("maxx_model_out_of_credit", { runId: r.id, provider: r.provider });
+    for (const r of Object.values(runs)) for (const team of r.teams) {
+      const seat = team.seats.find((s) => s.id === sessionId);
+      if (!seat) continue;
+      const first = !seat.noCreditAt;
+      seat.noCreditAt = Date.now();
+      if (!r.modelOut) {
+        r.modelOut = true;
+        log("maxx_model_out_of_credit", { runId: r.id, provider: r.provider });
+      }
+      if (first) save();
+      return;
     }
   }
   const slug = (t) => String(t).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 32) || "part";
@@ -822,7 +831,7 @@ export function createMaxx({ client, tracked, saveState, indexRelay, log, json, 
   }
 
   // A sub-agent's end: copy its tree into the parent's parts/ folder, then terminate it.
-  async function handOver(r, team, seat, summary) {
+  async function handOver(r, team, seat, summary, reported = true) {
     let answer = summary;
     const parent = team.seats.find((s) => s.path === seat.parent);
     try {
@@ -837,9 +846,10 @@ export function createMaxx({ client, tracked, saveState, indexRelay, log, json, 
       await unpackTree(await client.get(parent.id), b64, `/home/tenki/work/${partDir(seat)}`);
     } catch (e) {
       answer += `\n\n(Its files could not be copied to you: ${e.message}. Rebuild what you need from this summary.)`;
+      seat.copyFailed = true;
       log("maxx_report_copy_failed", { runId: r.id, seat: seat.path, message: e.message });
     }
-    seat.answer = answer; seat.state = "done";
+    seat.answer = answer; seat.state = "done"; seat.noReport = !reported;
     log("maxx_reported", { runId: r.id, team: team.tag, seat: seat.path });
     killSeat(seat, 5_000).catch(() => {});             // let the reply reach the agent first
   }
@@ -892,6 +902,16 @@ export function createMaxx({ client, tracked, saveState, indexRelay, log, json, 
     }
   }
 
+  // What's wrong with an agent, for the pyramid. Null while it's fine.
+  function seatProblem(team, s) {
+    if (s.state === "failed") return noBalance({ message: s.error }) ? "out_of_credit" : "failed";
+    if (s.machine === "up" && s.noCreditAt > (tracked[s.id]?.relayOkAt || 0)) return "out_of_credit";
+    if (s.machine === "up" && s.stalledAt) return "stalled";
+    if (s.noReport) return "no_report";
+    if (s.copyFailed) return "copy_failed";
+    if (s.state === "ended" && !team.publishedUrl) return "unfinished";   // the deadline, or a lead that stopped
+    return null;
+  }
   const publicRun = (r) => ({
     id: r.id, template: r.template, state: r.state, mode: r.mode, compete: r.compete,
     harness: r.harness ?? "opencode", provider: r.provider ?? null, emotion: r.emotion ?? "none", modelOut: !!r.modelOut,
@@ -907,6 +927,8 @@ export function createMaxx({ client, tracked, saveState, indexRelay, log, json, 
         machine: s.machine ?? (s.state === "pending" ? "booting" : DONE.has(s.state) ? "terminated" : "up"),
         temperament: seatTemperament(r, { level: s.level ?? 0, path: s.path ?? "r" })?.name ?? null,
         keepUntil: s.keepUntil ?? null,
+        problem: seatProblem(t, s), delivered: !!s.published || (s.state === "done" && !s.noReport && !s.copyFailed),
+        startedAt: s.startedAt ?? null, endedAt: s.endedAt ?? null,
       })),
     })),
   });
@@ -1003,6 +1025,15 @@ export function createMaxx({ client, tracked, saveState, indexRelay, log, json, 
     return r ? json(res, 200, publicRun(r)) : json(res, 404, { error: "not_found" });
   }
 
+  // GET /api/maxx/:runId/seats/:team/:path — one agent's task and report, for the pyramid's
+  // panel. Kept out of publicRun so an 85-agent poll doesn't carry them all. Named fields
+  // only: a seat also holds its session id.
+  function seatDetail(res, runId, tag, seatPath) {
+    const team = runs[runId]?.teams.find((t) => t.tag === tag);
+    const seat = team?.seats.find((s) => (s.path ?? s.role) === seatPath);
+    return seat ? json(res, 200, { task: seat.prompt ?? null, report: seat.answer ?? null }) : json(res, 404, { error: "not_found" });
+  }
+
   // Stop the run's agents. By default the shipped deliverable(s) are KEPT alive
   // — stopping the agents shouldn't destroy the end product. `releaseAll` also
   // tears the deliverables down (full cleanup).
@@ -1072,7 +1103,7 @@ export function createMaxx({ client, tracked, saveState, indexRelay, log, json, 
           if (seat.machine !== "up" || seat.published || !seat.id) continue;
           const e = tracked[seat.id];
           if (childrenOf(team, seat).some((k) => !DONE.has(k.state)) || e?.relayInFlight > 0 || Date.now() - (e?.relayOkAt || 0) < SEAT_IDLE_MS) {
-            seat.screenAt = Date.now(); continue;
+            seat.screenAt = Date.now(); seat.stalledAt = null; continue;
           }
           seats.push({ r, team, seat });
         }
@@ -1081,11 +1112,11 @@ export function createMaxx({ client, tracked, saveState, indexRelay, log, json, 
         try {
           const s = await client.get(seat.id);
           const screen = stdoutText(await s.exec("bash", { args: ["-lc", "tmux capture-pane -pt agent 2>/dev/null | md5sum"], timeoutMs: 15_000 }));
-          if (screen !== seat.screen) { seat.screen = screen; seat.screenAt = Date.now(); return; }
+          if (screen !== seat.screen) { seat.screen = screen; seat.screenAt = Date.now(); seat.stalledAt = null; return; }
           if (Date.now() - (seat.screenAt || 0) < SEAT_IDLE_MS) return;
           // One nudge first: an agent often just stopped to wait for someone to reply.
           if (!seat.nudged) {
-            seat.nudged = true; seat.screenAt = Date.now(); save();
+            seat.nudged = true; seat.stalledAt = seat.screenAt = Date.now(); save();
             const text = seat.parent ? "Finish your part now, then run tenki-report as your last step."
               : childrenOf(team, seat).length ? "All your sub-agents have finished. Run tenki-wait, integrate their parts, then publish with tenki-serve and tenki-publish."
               : "Finish the build now, then publish with tenki-serve and tenki-publish.";
@@ -1095,7 +1126,7 @@ export function createMaxx({ client, tracked, saveState, indexRelay, log, json, 
             return;
           }
           log("maxx_seat_idle", { runId: r.id, seat: seat.path });
-          if (seat.parent) await handOver(r, team, seat, "(This agent stopped without reporting. Whatever it finished is in its folder.)");
+          if (seat.parent) await handOver(r, team, seat, "(This agent stopped without reporting. Whatever it finished is in its folder.)", false);
           else await endRun(r);
           save();
         } catch (e) { log("maxx_idle_check_failed", { seat: seat.path, message: e.message }); }
@@ -1268,7 +1299,18 @@ export function createMaxx({ client, tracked, saveState, indexRelay, log, json, 
       r.round = round;
       r.pickedWinner = tag;
       r.verdict = null;
-      for (const team of r.teams) { team.publishedUrl = null; for (const seat of team.seats) if (seat.state === "shipped") { seat.state = "running"; seat.keepUntil = null; seat.published = false; } }
+      for (const team of r.teams) {
+        team.publishedUrl = null;
+        for (const seat of team.seats) {
+          if (seat.state === "shipped") { seat.state = "running"; seat.keepUntil = null; seat.published = false; seat.endedAt = null; }
+          // Every lead that carries on starts the round fresh: last round's idle and
+          // credit flags would otherwise mark it stalled, or skip its one nudge.
+          if (!seat.parent && seat.state === "running") {
+            seat.nudged = false; seat.stalledAt = null; seat.screen = null; seat.screenAt = null;
+            seat.noCreditAt = null; seat.startedAt = Date.now();
+          }
+        }
+      }
       r.deadline = Math.max(r.deadline, Date.now() + DEFAULT_DEADLINE_MS);
       save();
       log("maxx_picked", { runId, winner: tag, round, copied, told, feedback: !!feedback });
@@ -1291,6 +1333,7 @@ export function createMaxx({ client, tracked, saveState, indexRelay, log, json, 
         if (seat) {
           team.publishedUrl = url;
           seat.published = true;
+          seat.endedAt = Date.now();
           // The shipped app is the deliverable — keep this sandbox alive past
           // the run deadline and exempt it from the reaper, so the end product
           // doesn't turn to sand. Worker seats still expire normally.
@@ -1311,5 +1354,5 @@ export function createMaxx({ client, tracked, saveState, indexRelay, log, json, 
     }
   }
 
-  return { start, get, stop, watch, say, pick, split, wait, report, notifyExpose, sweep, gallery, warmVisit, warmGet, noteOutOfCredit };
+  return { start, get, seatDetail, stop, watch, say, pick, split, wait, report, notifyExpose, sweep, gallery, warmVisit, warmGet, noteOutOfCredit };
 }
